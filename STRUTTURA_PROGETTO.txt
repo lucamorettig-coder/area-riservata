@@ -1,0 +1,147 @@
+📁 AREA GENITORI - SCUOLA DI CICLISMO
+=====================================
+
+📂 PAGINE WEB (src/pages/)
+├── 🏠 index.astro                    → Home page con introduzione
+├── 📝 registrazione.astro            → Form registrazione nuovo genitore
+├── 🔐 login.astro                    → Form login con email
+├── 📊 dashboard.astro                → Area personale genitore (protetta)
+└── ✏️  modifica-profilo.astro        → Form modifica dati genitore (protetta)
+
+📂 API ROUTES (src/pages/api/)
+├── 📤 registrazione.ts               → POST: Crea nuovo genitore su Airtable
+├── 🔑 login.ts                       → POST: Login e creazione sessione
+├── 🚪 logout.ts                      → POST: Logout e distruzione sessione
+└── 👤 profilo.ts                     → GET/PATCH: Leggi/Modifica profilo genitore
+
+📂 COMPONENTI REACT (src/components/)
+├── 📝 RegistrazioneForm.tsx          → Form interattivo registrazione
+├── 🔐 LoginForm.tsx                  → Form interattivo login
+├── 📊 DashboardGenitore.tsx          → Visualizzazione dati genitore
+└── ✏️  ModificaProfiloForm.tsx       → Form interattivo modifica profilo
+
+📂 LIBRERIE (src/lib/)
+├── 🗄️  airtable.ts                   → Client Airtable + metodi CRUD
+├── 🔒 auth.ts                        → Gestione autenticazione e sessioni
+├── ✅ validation.ts                  → Validazioni form (client + server)
+└── 🔗 base-url.ts                    → Configurazione base URL (già esistente)
+
+📂 STILI (src/styles/)
+└── 🎨 global.css                     → Stili globali + font Montserrat
+
+📂 DOCUMENTAZIONE (root)
+├── 📖 README.md                      → Introduzione progetto
+├── 🚀 ISTRUZIONI_RAPIDE.md           → Setup rapido in 3 passi
+├── 📋 RIEPILOGO_CREAZIONE.md         → Riepilogo completo app
+├── 📚 DOCUMENTAZIONE_APP.md          → Documentazione tecnica dettagliata
+├── ⚙️  ENV_SETUP.md                  → Guida configurazione variabili
+├── ✅ CHECKLIST_DEPLOY.md            → Checklist test pre/post deploy
+└── 🌳 STRUTTURA_PROGETTO.txt         → Questo file
+
+📂 CONFIGURAZIONE
+└── 📄 .env.local.example             → Template variabili d'ambiente
+
+
+🔗 FLUSSO APPLICAZIONE
+======================
+
+1️⃣  REGISTRAZIONE
+   Home → Registrazione → [Airtable] → Login (con messaggio successo)
+
+2️⃣  LOGIN
+   Home → Login → [Airtable verifica email] → Dashboard
+
+3️⃣  AREA PERSONALE
+   Dashboard → Modifica Profilo → [Airtable update] → Dashboard
+
+4️⃣  LOGOUT
+   Dashboard → Logout → [Distruggi sessione] → Login
+
+
+🗄️  DATABASE AIRTABLE
+=====================
+
+📊 Base ID: appszpkU1aXb3xrFM
+📋 Tabella: TABELLA_GENITORI
+
+Campi:
+├── NOME_GENITORE               (Text, obbligatorio)
+├── COGNOME_GENITORE            (Text, obbligatorio)
+├── DATA_NASCITA_GENITORE       (Date, obbligatorio)
+├── LUOGO_NASCITA_GENITORE      (Text, obbligatorio)
+├── CODICE_FISCALE_GENITORE     (Text 16 char, obbligatorio, maiuscolo)
+├── VIA_RESIDENZA_GENITORE      (Text, obbligatorio)
+├── CITTA_RESIDENZA_GENITORE    (Text, obbligatorio)
+├── EMAIL_GENITORE              (Email, obbligatorio, univoca)
+├── CELLULARE_GENITORE          (Phone, obbligatorio)
+└── FLAG_PRIVACY                (Checkbox, obbligatorio)
+
+
+⚙️  VARIABILI D'AMBIENTE
+========================
+
+AIRTABLE_BASE_ID=appszpkU1aXb3xrFM
+AIRTABLE_TOKEN=pat_[il_tuo_token_qui]
+
+📍 Configurare in: Webflow → Apps → Settings → Environment Variables
+
+
+🔒 SICUREZZA
+============
+
+✅ Autenticazione cookie-based (sessione 7 giorni)
+✅ Pagine protette: dashboard, modifica-profilo
+✅ Isolamento dati: ogni genitore vede solo i suoi dati
+✅ Validazioni server-side + client-side
+✅ Email univoca
+✅ Privacy GDPR obbligatoria
+
+
+🎨 DESIGN
+=========
+
+📱 Mobile-first
+🔤 Font: Montserrat
+🎨 UI: shadcn/ui
+🖌️  CSS: Tailwind CSS
+🌈 Tema: Variabili CSS Webflow
+
+
+🚀 STATO PROGETTO
+=================
+
+✅ FASE 1 - COMPLETATA
+   ✓ Registrazione genitore
+   ✓ Login genitore
+   ✓ Dashboard genitore
+   ✓ Modifica profilo genitore
+   ✓ Validazioni complete
+   ✓ Sicurezza implementata
+   ✓ Documentazione completa
+
+📅 FASE 2 - FUTURE
+   ○ Gestione bambini
+   ○ Collegamento genitore-bambini
+
+📅 FASE 3 - FUTURE
+   ○ Gestione iscrizioni ai corsi
+   ○ Visualizzazione corsi disponibili
+
+
+🎯 PROSSIMI PASSI
+=================
+
+1. Ottieni token Airtable (https://airtable.com/create/tokens)
+2. Configura variabili in Webflow Environment Variables
+3. Deploy dell'app
+4. Test completo con CHECKLIST_DEPLOY.md
+5. ✅ App pronta per l'uso!
+
+
+📞 SUPPORTO
+===========
+
+📖 Documentazione completa disponibile
+🐛 Troubleshooting in DOCUMENTAZIONE_APP.md
+✅ Checklist test in CHECKLIST_DEPLOY.md
+🚀 Setup rapido in ISTRUZIONI_RAPIDE.md

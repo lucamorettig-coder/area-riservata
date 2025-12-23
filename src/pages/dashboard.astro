@@ -1,0 +1,49 @@
+---
+import MainLayout from '../layouts/main.astro';
+import DashboardGenitore from '../components/DashboardGenitore';
+import { getGenitoreFromSession } from '../lib/auth';
+
+const genitore = await getGenitoreFromSession(Astro);
+
+// Se non è autenticato, redirect al login
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+
+// Messaggi di successo dai query params
+const url = new URL(Astro.request.url);
+const bambinoAggiunto = url.searchParams.get('bambino-aggiunto');
+const bambinoModificato = url.searchParams.get('bambino-modificato');
+const bambinoEliminato = url.searchParams.get('bambino-eliminato');
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background">
+  <div class="container-medium" style="padding-top: 2rem; padding-bottom: 2rem;">
+    {bambinoAggiunto && (
+      <div class="bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm" style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        ✓ Bambino aggiunto correttamente!
+      </div>
+    )}
+    
+    {bambinoModificato && (
+      <div class="bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm" style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        ✓ Dati bambino modificati con successo!
+      </div>
+    )}
+    
+    {bambinoEliminato && (
+      <div class="bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm" style="padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        ✓ Bambino eliminato correttamente!
+      </div>
+    )}
+    
+    <div class="card-rounded border bg-card text-card-foreground shadow-sm">
+      <DashboardGenitore 
+        client:only="react" 
+        genitore={genitore.fields}
+      />
+    </div>
+  </div>
+</div>
+</MainLayout>

@@ -1,0 +1,25 @@
+---
+import MainLayout from '../layouts/main.astro';
+import ModificaProfiloForm from '../components/ModificaProfiloForm';
+import { getGenitoreFromSession } from '../lib/auth';
+
+const genitore = await getGenitoreFromSession(Astro);
+
+// Se non è autenticato, redirect al login
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background">
+  <div class="container-medium" style="padding-top: 2rem; padding-bottom: 2rem;">
+    <div class="card-rounded border bg-card text-card-foreground shadow-sm">
+      <ModificaProfiloForm 
+        client:only="react" 
+        genitore={genitore.fields}
+      />
+    </div>
+  </div>
+</div>
+</MainLayout>

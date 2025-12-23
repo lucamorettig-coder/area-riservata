@@ -1,0 +1,180 @@
+---
+import MainLayout from '../layouts/main.astro';
+import { baseUrl } from '../lib/base-url';
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-2xl mx-auto">
+        <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <div>
+            <h1 class="text-2xl font-bold font-heading mb-2">🧪 Test Registrazione</h1>
+            <p class="text-sm text-muted-foreground">
+              Questa pagina testa ogni componente della registrazione separatamente
+            </p>
+          </div>
+
+          <div style="height: 1px; background-color: var(--border);"></div>
+
+          <!-- Form di test -->
+          <form id="testForm" style="display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+              <label class="text-sm font-medium mb-1 block">Email di test</label>
+              <input
+                type="email"
+                id="email"
+                value="test@example.com"
+                class="w-full px-3 py-2 border rounded-md"
+                style="border-color: var(--border); background: var(--input);"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-medium mb-1 block">Password di test</label>
+              <input
+                type="password"
+                id="password"
+                value="test123456"
+                class="w-full px-3 py-2 border rounded-md"
+                style="border-color: var(--border); background: var(--input);"
+              />
+            </div>
+
+            <button
+              type="submit"
+              class="pulsante1 btn-standard"
+            >
+              🚀 Esegui Test
+            </button>
+          </form>
+
+          <div style="height: 1px; background-color: var(--border);"></div>
+
+          <!-- Risultati -->
+          <div>
+            <h3 class="font-semibold mb-2">📊 Risultati</h3>
+            <div 
+              id="results" 
+              class="card-rounded bg-muted/50 p-4 min-h-[200px] overflow-auto"
+              style="font-family: monospace; font-size: 0.75rem; white-space: pre-wrap;"
+            >
+              In attesa di test...
+            </div>
+          </div>
+
+          <!-- Status indicators -->
+          <div id="statusCards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem;">
+            <!-- Will be populated by JS -->
+          </div>
+
+          <div style="height: 1px; background-color: var(--border);"></div>
+
+          <a href={baseUrl + '/'} class="text-primary hover:underline text-sm text-center">
+            ← Torna alla home
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</MainLayout>
+
+<script define:vars={{ baseUrl }}>
+  const form = document.getElementById('testForm');
+  const results = document.getElementById('results');
+  const statusCards = document.getElementById('statusCards');
+
+  function createStatusCard(step, title, data) {
+    const card = document.createElement('div');
+    const isSuccess = data.status === 'success';
+    const isError = data.status === 'error';
+    const isSkipped = data.status === 'skipped';
+    
+    let bgColor = 'var(--muted)';
+    let icon = '⏸️';
+    
+    if (isSuccess) {
+      bgColor = '#dcfce7'; // green-100
+      icon = '✅';
+    } else if (isError) {
+      bgColor = '#fee2e2'; // red-100
+      icon = '❌';
+    } else if (isSkipped) {
+      bgColor = '#fef3c7'; // yellow-100
+      icon = '⏭️';
+    }
+    
+    card.style.cssText = `
+      padding: 0.75rem;
+      border-radius: 8px;
+      background-color: ${bgColor};
+      border: 1px solid rgba(0,0,0,0.1);
+    `;
+    
+    card.innerHTML = `
+      <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">${icon}</div>
+      <div style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem;">${title}</div>
+      <div style="font-size: 0.75rem; color: #666;">${data.status}</div>
+    `;
+    
+    return card;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    results.textContent = '⏳ Esecuzione test in corso...\n';
+    statusCards.innerHTML = '';
+    
+    try {
+      const response = await fetch(`${baseUrl}/api/registrazione-test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          EMAIL_GENITORE: email,
+          PASSWORD: password,
+          NOME_GENITORE: 'Test',
+          COGNOME_GENITORE: 'User',
+          DATA_NASCITA_GENITORE: '1990-01-01',
+          LUOGO_NASCITA_GENITORE: 'Test',
+          CODICE_FISCALE_GENITORE: 'TESTCF90A01H501Z',
+          VIA_RESIDENZA_GENITORE: 'Via Test 1',
+          CITTA_RESIDENZA_GENITORE: 'Test City',
+          CELLULARE_GENITORE: '+39 123 456 7890',
+          FLAG_PRIVACY: true,
+        })
+      });
+      
+      const data = await response.json();
+      
+      // Mostra risultati
+      results.textContent = JSON.stringify(data, null, 2);
+      
+      // Crea status cards
+      statusCards.innerHTML = '';
+      const steps = [
+        { key: 'step1_parseBody', title: 'Parse Body' },
+        { key: 'step2_checkEnv', title: 'Check Env' },
+        { key: 'step3_supabaseClient', title: 'Supabase Client' },
+        { key: 'step4_airtableClient', title: 'Airtable Client' },
+        { key: 'step5_supabaseSignup', title: 'Supabase Signup' },
+        { key: 'step6_airtableCreate', title: 'Airtable Create' },
+      ];
+      
+      steps.forEach(({ key, title }) => {
+        if (data[key]) {
+          statusCards.appendChild(createStatusCard(key, title, data[key]));
+        }
+      });
+      
+    } catch (error) {
+      results.textContent = `❌ Errore: ${error.message}\n\n${error.stack || ''}`;
+    }
+  });
+</script>

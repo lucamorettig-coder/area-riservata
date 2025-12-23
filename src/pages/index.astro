@@ -1,0 +1,114 @@
+---
+import MainLayout from '../layouts/main.astro';
+import { baseUrl } from '../lib/base-url';
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background">
+<div class="container mx-auto px-4 py-8">
+<div class="max-w-2xl mx-auto">
+<!-- Card principale -->
+<div class="card-rounded border bg-card text-card-foreground shadow-sm" style="padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 2rem;">
+<!-- Titolo principale -->
+<div style="display: flex; flex-direction: column; gap: 0.25rem; text-align: center;">
+<h3 class="text-xl sm:text-2xl font-bold font-heading" style="word-break: break-word;">
+Area Genitori
+</h3>
+<p class="text-sm text-muted-foreground">
+Scuola di Ciclismo - Portale Genitori
+</p>
+</div>
+
+<!-- Separatore -->
+<div style="height: 1px; background-color: var(--border);"></div>
+
+<!-- SEZIONE: Benvenuto -->
+<div style="display: flex; flex-direction: column; gap: 1rem;">
+<div style="display: flex; align-items: center; gap: 0.75rem;">
+<div style="width: 2.5rem; height: 2.5rem; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+<circle cx="12" cy="7" r="4"></circle>
+</svg>
+</div>
+<h4 class="font-semibold text-muted-foreground uppercase tracking-wider" style="font-size: 1.6rem; margin: 0;">
+Benvenuto
+</h4>
+</div>
+<p class="text-sm text-muted-foreground">
+Questo portale ti permette di gestire in modo semplice e veloce 
+i tuoi dati personali e, in futuro, le iscrizioni dei tuoi bambini 
+ai corsi di ciclismo.
+</p>
+</div>
+
+<!-- Separatore -->
+<div style="height: 1px; background-color: var(--border);"></div>
+
+<!-- SEZIONE: Cosa puoi fare -->
+<div style="display: flex; flex-direction: column; gap: 1rem;">
+<div style="display: flex; align-items: center; gap: 0.75rem;">
+<div style="width: 2.5rem; height: 2.5rem; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<polyline points="20 6 9 17 4 12"></polyline>
+</svg>
+</div>
+<h4 class="font-semibold text-muted-foreground uppercase tracking-wider" style="font-size: 1.6rem; margin: 0;">
+Cosa puoi fare
+</h4>
+</div>
+<ul class="space-y-2 text-sm text-muted-foreground">
+<li style="display: flex; align-items: center; gap: 0.5rem;">
+<span style="color: var(--primary);">✓</span> Registrati come genitore
+</li>
+<li style="display: flex; align-items: center; gap: 0.5rem;">
+<span style="color: var(--primary);">✓</span> Accedi alla tua area personale
+</li>
+<li style="display: flex; align-items: center; gap: 0.5rem;">
+<span style="color: var(--primary);">✓</span> Visualizza e modifica i tuoi dati
+</li>
+<li style="display: flex; align-items: center; gap: 0.5rem; opacity: 0.6;">
+<span>•</span> Gestione iscrizioni (prossimamente)
+</li>
+</ul>
+</div>
+
+<!-- Separatore -->
+<div style="height: 1px; background-color: var(--border);"></div>
+
+<!-- CTA Buttons -->
+<div style="display: flex; flex-direction: column; gap: 1rem;">
+<a href={`${baseUrl}/registrazione`} class="pulsante1 btn-standard block text-center flex items-center justify-center">
+Registrati
+</a>
+<a href={`${baseUrl}/login`} class="pulsante1 is-secondary btn-standard block text-center flex items-center justify-center">
+Accedi
+</a>
+</div>
+
+<!-- Separatore -->
+<div style="height: 1px; background-color: var(--border);"></div>
+
+<!-- Info box -->
+<div class="card-rounded bg-muted/50" style="padding: 1rem 1.5rem;">
+<div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+<div style="width: 2rem; height: 2rem; border-radius: 50%; background-color: var(--muted-foreground); opacity: 0.3; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" y1="16" x2="12" y2="12"></line>
+<line x1="12" y1="8" x2="12.01" y2="8"></line>
+</svg>
+</div>
+<p class="text-sm font-medium text-muted-foreground" style="margin: 0;">
+Fase 1: Gestione dati anagrafici genitori
+</p>
+</div>
+<p class="text-xs text-muted-foreground" style="padding-left: 2.75rem; margin: 0;">
+Nelle prossime versioni aggiungeremo la gestione dei bambini e delle iscrizioni ai corsi
+</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</MainLayout>

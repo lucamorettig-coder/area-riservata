@@ -1,0 +1,14 @@
+---
+import MainLayout from '../layouts/main.astro';
+import LoginForm from '../components/LoginForm';
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background flex items-center justify-center px-4 py-16">
+<div class="w-full max-w-md">
+  <div class="card-rounded border bg-card text-card-foreground shadow-sm">
+    <LoginForm client:only="react" />
+  </div>
+</div>
+</div>
+</MainLayout>

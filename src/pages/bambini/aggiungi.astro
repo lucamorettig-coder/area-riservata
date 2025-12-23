@@ -1,0 +1,30 @@
+---
+import MainLayout from '../../layouts/main.astro';
+import AggiungiBambinoForm from '../../components/AggiungiBambinoForm';
+import { getGenitoreFromSession } from '../../lib/auth';
+
+// Verifica autenticazione
+const genitore = await getGenitoreFromSession(Astro);
+
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background" style="padding: 2rem 1rem;">
+<div class="container mx-auto" style="max-width: 45vw;">
+  <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="max-width: 100%;">
+    <AggiungiBambinoForm client:only="react" />
+  </div>
+</div>
+</div>
+
+<style>
+@media (max-width: 768px) {
+  .container {
+    max-width: 90vw !important;
+  }
+}
+</style>
+</MainLayout>
