@@ -1,0 +1,64 @@
+---
+import MainLayout from '../layouts/main.astro';
+import { baseUrl } from '../lib/base-url';
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-4xl mx-auto">
+        <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="padding: 2rem;">
+          <h1 class="text-2xl font-bold mb-6">Debug Iscrizioni</h1>
+          
+          <div class="space-y-4">
+            <button 
+              id="fetchBtn"
+              class="pulsante1 btn-standard"
+            >
+              Carica Dati Iscrizioni
+            </button>
+
+            <div id="output" class="bg-muted p-4 rounded-lg overflow-auto" style="max-height: 600px;">
+              <pre id="result" class="text-sm">Clicca sul pulsante per caricare i dati...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ baseUrl }}>
+    document.getElementById('fetchBtn').addEventListener('click', async () => {
+      const resultEl = document.getElementById('result');
+      resultEl.textContent = 'Caricamento...';
+      
+      try {
+        const response = await fetch(`${baseUrl}/api/debug-iscrizioni`, {
+          credentials: 'include'
+        });
+        
+        const data = await response.json();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+        
+        // Aggiungi evidenziazione per i campi importanti
+        console.log('=== DATI ISCRIZIONI ===');
+        console.log('Numero iscrizioni:', data.count);
+        if (data.iscrizioni && data.iscrizioni.length > 0) {
+          data.iscrizioni.forEach((isc, idx) => {
+            console.log(`\n--- Iscrizione ${idx + 1} ---`);
+            console.log('ID:', isc.id);
+            console.log('NOME_BAMBINO:', isc.fields.NOME_BAMBINO);
+            console.log('COGNOME_BAMBINO:', isc.fields.COGNOME_BAMBINO);
+            console.log('ANNO_ISCRIZIONE:', isc.fields.ANNO_ISCRIZIONE);
+            console.log('STATO_ISCRIZIONE:', isc.fields.STATO_ISCRIZIONE);
+            console.log('CATEGORIA:', isc.fields.CATEGORIA);
+            console.log('Tutti i campi:', isc.allFields);
+          });
+        }
+      } catch (error) {
+        resultEl.textContent = `Errore: ${error.message}\n\n${error.stack}`;
+        console.error('Errore:', error);
+      }
+    });
+  </script>
+</MainLayout>

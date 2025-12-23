@@ -1,0 +1,30 @@
+---
+import MainLayout from '../../layouts/main.astro';
+import NuovaIscrizioneForm from '../../components/NuovaIscrizioneForm';
+import { getGenitoreFromSession } from '../../lib/auth';
+import { baseUrl } from '../../lib/base-url';
+
+// Verifica autenticazione
+const genitore = await getGenitoreFromSession(Astro);
+
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+
+// Ottieni bambinoId dalla query string (opzionale)
+const url = new URL(Astro.request.url);
+const bambinoIdPreselezionato = url.searchParams.get('bambinoId');
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background">
+<div class="container mx-auto px-4 py-8">
+  <div class="max-w-4xl mx-auto">
+    <NuovaIscrizioneForm 
+      client:only="react" 
+      preSelectedBambinoId={bambinoIdPreselezionato}
+    />
+  </div>
+</div>
+</div>
+</MainLayout>

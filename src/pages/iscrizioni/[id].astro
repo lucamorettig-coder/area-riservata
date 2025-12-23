@@ -1,0 +1,38 @@
+---
+import MainLayout from '../../layouts/main.astro';
+import DettaglioIscrizione from '../../components/DettaglioIscrizione';
+import { baseUrl } from '../../lib/base-url';
+
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect(`${baseUrl}/dashboard`);
+}
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-4xl mx-auto">
+        <DettaglioIscrizione 
+          iscrizioneId={id} 
+          onBack={() => {}} 
+          client:only="react"
+        />
+      </div>
+    </div>
+  </div>
+</MainLayout>
+
+<script define:vars={{ baseUrl }}>
+  // Script per gestire il back button
+  window.addEventListener('DOMContentLoaded', () => {
+    // Aggiungi listener globale per il pulsante indietro
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target && target.closest('[data-action="back"]')) {
+        window.location.href = `${baseUrl}/dashboard`;
+      }
+    });
+  });
+</script>

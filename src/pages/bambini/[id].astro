@@ -1,0 +1,336 @@
+---
+import MainLayout from '../../layouts/main.astro';
+import DettaglioBambino from '../../components/DettaglioBambino';
+import FotoBambino from '../../components/FotoBambino';
+import CertificatoMedico from '../../components/CertificatoMedico';
+import IscrizioniBambino from '../../components/IscrizioniBambino';
+import { getGenitoreFromSession } from '../../lib/auth';
+import { getAirtableClient } from '../../lib/airtable';
+import { baseUrl } from '../../lib/base-url';
+
+// Verifica autenticazione
+const genitore = await getGenitoreFromSession(Astro);
+
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+
+// Ottieni l'ID del bambino dai params
+const bambinoId = Astro.params.id;
+
+if (!bambinoId) {
+  return Astro.redirect('/dashboard');
+}
+
+// Recupera i dati del bambino
+const client = getAirtableClient(Astro.locals?.runtime);
+
+if (!client) {
+  throw new Error('Airtable client not configured');
+}
+
+let bambino;
+try {
+  bambino = await client.getBambinoById(bambinoId, genitore.id!);
+  
+  if (!bambino) {
+    return Astro.redirect('/dashboard');
+  }
+} catch (error) {
+  console.error('Errore nel recupero bambino:', error);
+  return Astro.redirect('/dashboard');
+}
+
+// Prepara i dati del certificato medico
+// CERTIFICATO_MEDICO_FILE è un array di attachment, prendiamo il primo se esiste
+const certificatoFile = bambino.fields.CERTIFICATO_MEDICO_FILE && 
+                        bambino.fields.CERTIFICATO_MEDICO_FILE.length > 0 
+                          ? bambino.fields.CERTIFICATO_MEDICO_FILE[0].url 
+                          : undefined;
+
+const certificato = {
+  file: certificatoFile,
+  scadenza: bambino.fields.CERTIFICATO_MEDICO_SCADENZA,
+  stato: bambino.fields.CERTIFICATO_MEDICO_STATO,
+};
+
+// Prepara l'URL della foto
+const fotoUrl = bambino.fields.FOTO_BAMBINO && bambino.fields.FOTO_BAMBINO.length > 0
+  ? bambino.fields.FOTO_BAMBINO[0].url
+  : undefined;
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background">
+<div class="container-medium" style="padding-top: 2rem; padding-bottom: 2rem;">
+  <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="display: flex; flex-direction: column; gap: 2rem;">
+    
+    <!-- Header: Titolo e Badge Certificato -->
+    <div style="padding: 1rem 1.5rem 0 1.5rem;">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <h3 class="text-xl sm:text-2xl font-bold font-heading" style={{ wordBreak: 'break-word' }}>
+              Dettaglio Bambino
+            </h3>
+            <p class="text-sm text-muted-foreground">
+              {bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}
+            </p>
+          </div>
+          
+          <!-- Badge Certificato -->
+          {certificato.stato && (
+            <div 
+              class="card-rounded"
+              style={{
+                backgroundColor: certificato.stato.toLowerCase() === 'valido' ? 'var(--_redesign---palette-brand--verde)' : 
+                                certificato.stato.toLowerCase() === 'in scadenza' ? 'var(--_redesign---palette-brand--arancio)' :
+                                certificato.stato.toLowerCase() === 'scaduto' ? 'var(--_redesign---palette-brand--rosso)' : 
+                                'var(--muted)',
+                padding: '0.5rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexShrink: 0
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={certificato.stato && ['valido', 'in scadenza', 'scaduto'].includes(certificato.stato.toLowerCase()) ? 'white' : 'var(--foreground)'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <line x1="10" y1="9" x2="8" y2="9"></line>
+              </svg>
+              <span
+                style={{
+                  color: certificato.stato && ['valido', 'in scadenza', 'scaduto'].includes(certificato.stato.toLowerCase()) ? 'white' : 'var(--foreground)',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  letterSpacing: '0.05em'
+                }}
+              >
+                Certificato: <span style={{ textTransform: 'uppercase' }}>{certificato.stato || 'Non disponibile'}</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- Separatore -->
+    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
+
+    <!-- Layout a due colonne: Foto + Dati Anagrafici -->
+    <div style="padding: 0 1.5rem;">
+      <div class="grid grid-cols-1 md:grid-cols-[300px_1fr]" style="gap: 2rem; align-items: start;">
+        <!-- Colonna Foto (più stretta) -->
+        <div>
+          <FotoBambino 
+            client:only="react" 
+            bambinoId={bambinoId}
+            fotoUrl={fotoUrl}
+            nomeBambino={`${bambino.fields.NOME_BAMBINO} ${bambino.fields.COGNOME_BAMBINO}`}
+          />
+        </div>
+        
+        <!-- Colonna Dati Anagrafici (più larga) -->
+        <div>
+          <DettaglioBambino 
+            client:only="react" 
+            bambino={bambino.fields}
+            certificatoStato={certificato.stato}
+            bambinoId={bambinoId}
+            showActions={false}
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Separatore -->
+    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
+
+    <!-- Sezione Certificato Medico -->
+    <div style="padding: 0 1.5rem;">
+      <CertificatoMedico 
+        client:only="react" 
+        bambinoId={bambinoId}
+        certificato={certificato}
+      />
+    </div>
+
+    <!-- Separatore -->
+    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
+
+    <!-- Sezione Iscrizioni -->
+    <div style="padding: 0 1.5rem;">
+      <IscrizioniBambino 
+        client:only="react" 
+        bambinoId={bambinoId}
+      />
+    </div>
+
+    <!-- Separatore -->
+    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
+
+    <!-- Pulsanti azione in fondo -->
+    <div style="padding: 0 1.5rem 1.5rem 1.5rem;">
+      <!-- Desktop: pulsanti con testo -->
+      <div class="hidden sm:flex" style="gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <a
+          href={`${baseUrl}/dashboard`}
+          class="pulsante1 is-secondary btn-standard inline-flex items-center justify-center gap-2"
+          style="text-decoration: none; padding-left: 1.5rem; padding-right: 1.5rem;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+          Indietro
+        </a>
+
+        <a
+          href={`${baseUrl}/bambini/${bambinoId}/modifica`}
+          class="pulsante1 btn-standard inline-flex items-center justify-center gap-2"
+          style="text-decoration: none; padding-left: 1.5rem; padding-right: 1.5rem;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+          </svg>
+          Modifica
+        </a>
+
+        <button
+          id="delete-button"
+          class="pulsante1 btn-standard inline-flex items-center justify-center gap-2"
+          style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none; padding-left: 1.5rem; padding-right: 1.5rem; text-decoration: none;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+          Elimina
+        </button>
+      </div>
+
+      <!-- Mobile: pulsanti solo icone -->
+      <div class="flex sm:hidden" style="gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <a
+          href={`${baseUrl}/dashboard`}
+          class="pulsante1 is-secondary btn-standard inline-flex items-center justify-center"
+          style="text-decoration: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
+          title="Indietro"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+        </a>
+
+        <a
+          href={`${baseUrl}/bambini/${bambinoId}/modifica`}
+          class="pulsante1 btn-standard inline-flex items-center justify-center"
+          style="text-decoration: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
+          title="Modifica"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
+          </svg>
+        </a>
+
+        <button
+          id="delete-button-mobile"
+          class="pulsante1 btn-standard inline-flex items-center justify-center"
+          style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
+          title="Elimina"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Dialog di conferma eliminazione -->
+<div
+  id="delete-dialog"
+  style="position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; z-index: 50;"
+>
+  <div
+    class="card-rounded bg-card"
+    style="padding: 1.5rem; max-width: 400px; margin: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2);"
+  >
+    <h3 class="text-lg font-bold mb-4">Conferma Eliminazione</h3>
+    <p class="text-sm text-muted-foreground mb-6">
+      Sei sicuro di voler eliminare <strong>{bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}</strong>? Questa azione non può essere annullata.
+    </p>
+    <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+      <button
+        id="cancel-delete"
+        class="pulsante1 is-secondary btn-standard"
+      >
+        Annulla
+      </button>
+      <button
+        id="confirm-delete"
+        class="pulsante1 btn-standard"
+        style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none;"
+      >
+        Elimina
+      </button>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ baseUrl, bambinoId }}>
+  const deleteButton = document.getElementById('delete-button');
+  const deleteButtonMobile = document.getElementById('delete-button-mobile');
+  const deleteDialog = document.getElementById('delete-dialog');
+  const cancelButton = document.getElementById('cancel-delete');
+  const confirmButton = document.getElementById('confirm-delete');
+
+  deleteButton?.addEventListener('click', () => {
+    if (deleteDialog) deleteDialog.style.display = 'flex';
+  });
+
+  deleteButtonMobile?.addEventListener('click', () => {
+    if (deleteDialog) deleteDialog.style.display = 'flex';
+  });
+
+  cancelButton?.addEventListener('click', () => {
+    if (deleteDialog) deleteDialog.style.display = 'none';
+  });
+
+  deleteDialog?.addEventListener('click', (e) => {
+    if (e.target === deleteDialog) {
+      deleteDialog.style.display = 'none';
+    }
+  });
+
+  confirmButton?.addEventListener('click', async () => {
+    confirmButton.disabled = true;
+    confirmButton.textContent = 'Eliminazione...';
+    
+    try {
+      const res = await fetch(`${baseUrl}/api/bambini/${bambinoId}`, {
+        method: 'DELETE',
+      });
+      
+      if (res.ok) {
+        window.location.href = `${baseUrl}/dashboard`;
+      } else {
+        alert('Errore durante l\'eliminazione');
+        confirmButton.disabled = false;
+        confirmButton.textContent = 'Elimina';
+      }
+    } catch (error) {
+      alert('Errore di rete');
+      confirmButton.disabled = false;
+      confirmButton.textContent = 'Elimina';
+    }
+  });
+</script>
+</MainLayout>

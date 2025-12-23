@@ -1,0 +1,22 @@
+---
+import MainLayout from '../layouts/main.astro';
+import RegistrazioneForm from '../components/RegistrazioneForm';
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background" style="padding: 2rem 1rem;">
+<div class="container mx-auto" style="max-width: 45vw;">
+  <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="max-width: 100%;">
+    <RegistrazioneForm client:only="react" />
+  </div>
+</div>
+</div>
+
+<style>
+@media (max-width: 768px) {
+  .container {
+    max-width: 90vw !important;
+  }
+}
+</style>
+</MainLayout>

@@ -1,0 +1,28 @@
+---
+import MainLayout from '../layouts/main.astro';
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-2xl mx-auto">
+        <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="padding: 2rem;">
+          <h1 class="text-2xl font-bold mb-4">Test Routing Reset Password</h1>
+          <p class="mb-4">Se vedi questa pagina, il routing funziona.</p>
+          
+          <div class="space-y-2">
+            <p><strong>Hash URL:</strong> <span id="hash"></span></p>
+            <p><strong>Search Params:</strong> <span id="search"></span></p>
+            <p><strong>Full URL:</strong> <span id="full"></span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</MainLayout>
+
+<script>
+  document.getElementById('hash')!.textContent = window.location.hash || 'Nessuno';
+  document.getElementById('search')!.textContent = window.location.search || 'Nessuno';
+  document.getElementById('full')!.textContent = window.location.href;
+</script>

@@ -1,0 +1,72 @@
+---
+import MainLayout from '../../../layouts/main.astro';
+import ModificaBambinoForm from '../../../components/ModificaBambinoForm';
+import { getGenitoreFromSession } from '../../../lib/auth';
+import { getAirtableClient } from '../../../lib/airtable';
+
+// Verifica autenticazione
+const genitore = await getGenitoreFromSession(Astro);
+
+if (!genitore) {
+  return Astro.redirect('/login');
+}
+
+// Ottieni l'ID del bambino dai params
+const bambinoId = Astro.params.id;
+
+if (!bambinoId) {
+  return Astro.redirect('/dashboard');
+}
+
+// Recupera i dati del bambino
+const client = getAirtableClient(Astro.locals?.runtime);
+
+if (!client) {
+  throw new Error('Airtable client not configured');
+}
+
+let bambino;
+try {
+  bambino = await client.getBambinoById(bambinoId, genitore.id!);
+  
+  if (!bambino) {
+    return Astro.redirect('/dashboard');
+  }
+} catch (error) {
+  console.error('Errore nel recupero bambino:', error);
+  return Astro.redirect('/dashboard');
+}
+
+// Estrai solo i campi editabili (escludi computed fields)
+const editableFields = {
+  NOME_BAMBINO: bambino.fields.NOME_BAMBINO,
+  COGNOME_BAMBINO: bambino.fields.COGNOME_BAMBINO,
+  DATA_NASCITA_BAMBINO: bambino.fields.DATA_NASCITA_BAMBINO,
+  LUOGO_NASCITA_BAMBINO: bambino.fields.LUOGO_NASCITA_BAMBINO,
+  CODICE_FISCALE_BAMBINO: bambino.fields.CODICE_FISCALE_BAMBINO,
+  VIA_RESIDENZA_BAMBINO: bambino.fields.VIA_RESIDENZA_BAMBINO,
+  CITTA_RESIDENZA_BAMBINO: bambino.fields.CITTA_RESIDENZA_BAMBINO,
+};
+---
+
+<MainLayout>
+<div class="min-h-screen bg-background" style="padding: 2rem 1rem;">
+<div class="container mx-auto" style="max-width: 45vw;">
+  <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="max-width: 100%;">
+    <ModificaBambinoForm 
+      client:only="react" 
+      bambino={editableFields}
+      bambinoId={bambinoId}
+    />
+  </div>
+</div>
+</div>
+
+<style>
+@media (max-width: 768px) {
+  .container {
+    max-width: 90vw !important;
+  }
+}
+</style>
+</MainLayout>

@@ -1,0 +1,35 @@
+---
+import MainLayout from '../layouts/main.astro';
+
+const appOrigin = Astro.locals?.runtime?.env?.APP_ORIGIN || import.meta.env.APP_ORIGIN || 'NON CONFIGURATO';
+const baseUrl = import.meta.env.BASE_URL;
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background">
+    <div class="container mx-auto px-4 py-8">
+      <div class="max-w-2xl mx-auto">
+        <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="padding: 2rem;">
+          <h1 class="text-2xl font-bold mb-6">Debug Configurazione</h1>
+          
+          <div class="space-y-4">
+            <div>
+              <strong class="text-sm text-muted-foreground">APP_ORIGIN (env):</strong>
+              <p class="text-lg font-mono bg-muted p-2 rounded mt-1">{appOrigin}</p>
+            </div>
+            
+            <div>
+              <strong class="text-sm text-muted-foreground">BASE_URL (Astro):</strong>
+              <p class="text-lg font-mono bg-muted p-2 rounded mt-1">{baseUrl}</p>
+            </div>
+            
+            <div>
+              <strong class="text-sm text-muted-foreground">Reset Password URL dovrebbe essere:</strong>
+              <p class="text-lg font-mono bg-muted p-2 rounded mt-1">{appOrigin}/reset-password</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</MainLayout>
