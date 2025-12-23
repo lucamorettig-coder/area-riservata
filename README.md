@@ -1,219 +1,181 @@
-# 🚴 Area Genitori - Scuola di Ciclismo
+# Area Riservata Triono
 
-Web application per la gestione dell'area privata dei genitori di una scuola di ciclismo.
+Portale genitori per la gestione delle iscrizioni alla Scuola di Ciclismo Triono.
 
-## 📋 Fase 1 - Gestione Anagrafica Genitori
+## 🚀 Funzionalità
 
-Questa prima versione dell'app permette ai genitori di:
+### ✅ Fase 1 - Gestione Genitori (Completata)
+- Registrazione genitore con autenticazione Supabase
+- Login con email e password
+- Recupero password tramite email
+- Modifica profilo genitore
+- Integrazione con Airtable per lo storage dati
 
-- ✅ Registrarsi al portale
-- ✅ Accedere con la propria email
-- ✅ Visualizzare i propri dati anagrafici
-- ✅ Modificare i propri dati anagrafici
+### ✅ Fase 2 - Gestione Bambini (Completata)
+- Aggiunta bambini (anagrafica completa)
+- Modifica dati bambino
+- Upload foto bambino (storage su Cloudflare R2)
+- Upload certificato medico con scadenza
+- Visualizzazione stato certificato (valido/scadenza/scaduto)
+- Calcolo automatico categoria in base alla data di nascita
 
-Le funzionalità di gestione bambini e iscrizioni saranno implementate nelle fasi successive.
+### ✅ Fase 3 - Gestione Iscrizioni (Completata)
+- Creazione nuova iscrizione per un bambino
+- Selezione tariffa anno corrente
+- Gestione consensi privacy GDPR FCI
+- Selezione taglie kit scuola (maglia, pantaloncino, tuta)
+- Upload regolamento firmato (PDF)
+- Visualizzazione dettaglio iscrizione con tariffe
+- Dashboard completa con riepilogo bambini e iscrizioni
 
----
+## 🛠 Tech Stack
 
-## 🚀 Quick Start
-
-### 1️⃣ Configurazione
-
-Configura le variabili d'ambiente necessarie (vedere `ISTRUZIONI_RAPIDE.md`):
-
-```env
-AIRTABLE_BASE_ID=appszpkU1aXb3xrFM
-AIRTABLE_TOKEN=pat_your_token_here
-```
-
-### 2️⃣ Deploy
-
-1. Configura le variabili in **Webflow** → **Apps** → **Environment Variables**
-2. Clicca **Deploy**
-3. L'app è live! 🎉
-
----
-
-## 📄 Documentazione
-
-- **[ISTRUZIONI_RAPIDE.md](./ISTRUZIONI_RAPIDE.md)** - Setup rapido in 3 passi
-- **[RIEPILOGO_CREAZIONE.md](./RIEPILOGO_CREAZIONE.md)** - Riepilogo completo dell'app
-- **[DOCUMENTAZIONE_APP.md](./DOCUMENTAZIONE_APP.md)** - Documentazione tecnica dettagliata
-- **[ENV_SETUP.md](./ENV_SETUP.md)** - Guida configurazione variabili d'ambiente
-
----
-
-## 🏗️ Architettura
-
-### Frontend
-- **Framework**: Astro + React
-- **UI**: shadcn/ui + Tailwind CSS
-- **Font**: Montserrat
-
-### Backend
-- **API**: Astro API Routes
+- **Framework**: Astro 5
+- **UI Components**: React 19 + shadcn/ui
+- **Styling**: TailwindCSS 4 + Webflow Design System
 - **Database**: Airtable
-- **Auth**: Cookie-based sessions
+- **Auth**: Supabase Auth
+- **File Storage**: Cloudflare R2
+- **Deploy**: Cloudflare Workers (via Webflow)
 
-### Deployment
-- **Platform**: Webflow Apps
-- **Runtime**: Cloudflare Workers
+## 📋 Struttura Airtable
 
----
+### Tabella GENITORI
+- Dati anagrafici completi
+- Email (univoca)
+- Codice fiscale (univoco)
+- Contatti
+- `AUTH_USER_ID` (collegamento con Supabase)
+- Privacy flag
 
-## 📊 Struttura Database
+### Tabella BAMBINI
+- Dati anagrafici bambino
+- Collegamento al genitore (linked record)
+- Foto bambino (attachment)
+- Certificato medico file + scadenza
+- Stato certificato (formula automatica)
+- Categoria (formula da data nascita)
 
-### Tabella Airtable: `TABELLA_GENITORI`
+### Tabella TARIFFE
+- Anno iscrizione
+- Quota totale anno
+- Importo iscrizione
+- Numero rate e importo rata
+- Scadenza rate
+- Kit scuola (importo e descrizione)
+- Flag ATTIVA
 
-| Campo | Tipo | Obbligatorio |
-|---|---|---|
-| NOME_GENITORE | Text | ✅ |
-| COGNOME_GENITORE | Text | ✅ |
-| DATA_NASCITA_GENITORE | Date | ✅ |
-| LUOGO_NASCITA_GENITORE | Text | ✅ |
-| CODICE_FISCALE_GENITORE | Text (16 char) | ✅ |
-| VIA_RESIDENZA_GENITORE | Text | ✅ |
-| CITTA_RESIDENZA_GENITORE | Text | ✅ |
-| EMAIL_GENITORE | Email | ✅ |
-| CELLULARE_GENITORE | Phone | ✅ |
-| FLAG_PRIVACY | Checkbox | ✅ |
+### Tabella ISCRIZIONI
+- Collegamento genitore (linked record)
+- Collegamento bambino (linked record)
+- Collegamento tariffa (linked record)
+- Privacy GDPR FCI
+- Taglie kit (maglia, pantaloncino, tuta)
+- Regolamento firmato (attachment)
+- Campi lookup: nome/cognome bambino, categoria, anno
+- Stato iscrizione (formula)
 
----
+## 🔐 Variabili d'Ambiente
 
-## 🔐 Sicurezza
+Crea un file `.env` con le seguenti variabili:
 
-- ✅ Autenticazione cookie-based
-- ✅ Sessioni protette (HTTP-only cookies)
-- ✅ Isolamento dati (ogni genitore vede solo i propri dati)
-- ✅ Validazioni server-side e client-side
-- ✅ Email univoca
-- ✅ Privacy GDPR obbligatoria
-
----
-
-## 🎨 Design
-
-- 📱 **Mobile-first**: Ottimizzato per smartphone
-- 🎨 **UI moderna**: shadcn/ui components
-- 🔤 **Font Montserrat**: Applicato globalmente
-- 🎯 **UX semplice**: Interfaccia intuitiva e rassicurante
-
----
-
-## 🛠️ Sviluppo Locale
-
-### Installazione
 ```bash
+# Airtable
+AIRTABLE_BASE_ID=your_base_id
+AIRTABLE_API_KEY=your_api_key
+
+# Supabase
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_anon_key
+
+# App Config
+APP_ORIGIN=https://your-domain.com
+
+# Cloudflare R2 (per upload file)
+R2_ACCOUNT_ID=your_r2_account_id
+R2_ACCESS_KEY_ID=your_access_key
+R2_SECRET_ACCESS_KEY=your_secret_key
+R2_BUCKET_NAME=your_bucket_name
+R2_PUBLIC_URL=https://your-r2-public-url
+```
+
+## 📦 Installazione
+
+```bash
+# Installa dipendenze
 npm install
-```
 
-### Configurazione
-```bash
-cp .env.local.example .env
-# Modifica .env con i tuoi valori
-```
-
-### Sviluppo
-```bash
+# Avvia in sviluppo
 npm run dev
-```
 
-### Build
-```bash
+# Build per produzione
 npm run build
+
+# Preview build
+npm run preview
 ```
 
-### Type Check
-```bash
-npm run astro check
+## 🚀 Deploy su Webflow
+
+Il progetto è configurato per il deploy automatico su Webflow Cloud tramite Cloudflare Workers.
+
+### Configurazione Deploy
+
+1. **Variabili d'ambiente** su Webflow:
+   - Vai nelle impostazioni del sito
+   - Aggiungi tutte le variabili d'ambiente necessarie
+   - Redeploy l'applicazione
+
+2. **Supabase - Redirect URLs**:
+   - Aggiungi l'URL di produzione in Supabase Authentication → URL Configuration
+   - Redirect URL: `https://your-domain.com/reset-password`
+
+3. **Cloudflare R2**:
+   - Configura il bucket R2 per lo storage dei file
+   - Imposta le CORS policy per permettere l'upload
+   - Aggiungi le credenziali nelle env vars
+
+## 📚 Documentazione
+
+Per maggiori dettagli consulta i file di documentazione nella root del progetto:
+
+- `START_HERE.md` - Guida rapida per iniziare
+- `DOCUMENTAZIONE_APP.md` - Documentazione completa dell'applicazione
+- `FASE_*_RIEPILOGO.md` - Riepilogo delle varie fasi di sviluppo
+- `SETUP_*.md` - Guide di configurazione specifiche
+
+## 🔧 Struttura Progetto
+
+```
+/src
+  /components         # Componenti React
+    /ui              # shadcn/ui components
+    *.tsx            # Form e componenti custom
+  /layouts           # Layout Astro
+  /lib               # Utility e client (Airtable, Supabase)
+  /pages             # Pagine e API routes
+    /api             # Endpoint API
+    /bambini         # Pagine gestione bambini
+    /iscrizioni      # Pagine gestione iscrizioni
+  /site-components   # Componenti Webflow Devlink
+  /styles            # Stili globali
+
+/generated           # File generati da Webflow (CSS, fonts)
 ```
 
----
+## 🤝 Contribuire
 
-## 📱 Pagine
+Questo è un progetto privato per la Scuola di Ciclismo Triono.
 
-| Rotta | Descrizione | Protetta |
-|---|---|---|
-| `/` | Home page | ❌ |
-| `/registrazione` | Registrazione nuovo genitore | ❌ |
-| `/login` | Login | ❌ |
-| `/dashboard` | Area personale | ✅ |
-| `/modifica-profilo` | Modifica dati | ✅ |
+## 📄 Licenza
 
----
+Privato - Tutti i diritti riservati
 
-## 🔄 User Flow
+## 👨‍💻 Sviluppo
 
-```
-Home → Registrazione → Login → Dashboard ⇄ Modifica Profilo
-                  ↓                 ↓
-            [Airtable]          [Airtable]
-```
+Sviluppato con ❤️ per la Scuola di Ciclismo Triono
 
 ---
 
-## 🎯 Roadmap
-
-### ✅ Fase 1 - Anagrafica Genitori (COMPLETATA)
-- [x] Registrazione genitore
-- [x] Login genitore
-- [x] Dashboard genitore
-- [x] Modifica profilo genitore
-
-### 📅 Fase 2 - Gestione Bambini (Future)
-- [ ] Anagrafica bambini
-- [ ] Collegamento genitore-bambini
-- [ ] CRUD bambini
-
-### 📅 Fase 3 - Gestione Iscrizioni (Future)
-- [ ] Lista corsi disponibili
-- [ ] Iscrizione bambini ai corsi
-- [ ] Visualizzazione stato iscrizioni
-
----
-
-## 🆘 Troubleshooting
-
-### Errore: "Configurazione Airtable non disponibile"
-➡️ Configura `AIRTABLE_BASE_ID` e `AIRTABLE_TOKEN` nelle Environment Variables
-
-### Errore: "Email già registrata"
-➡️ L'email esiste già. Usa il login.
-
-### Errore: "Email non trovata"
-➡️ Registrati prima di fare login.
-
----
-
-## 📞 Supporto
-
-Per problemi o domande, consulta la documentazione:
-- `ISTRUZIONI_RAPIDE.md` per setup veloce
-- `DOCUMENTAZIONE_APP.md` per dettagli tecnici
-- `ENV_SETUP.md` per configurazione variabili
-
----
-
-## 📝 Note
-
-- ⚠️ **NON** committare il file `.env` con credenziali reali
-- ⚠️ Il token Airtable è sensibile, trattalo come una password
-- ✅ Il file `.env` è già nel `.gitignore`
-
----
-
-## 🏗️ Built With
-
-- [Astro](https://astro.build/) - Framework
-- [React](https://react.dev/) - UI Components
-- [TypeScript](https://www.typescriptlang.org/) - Type Safety
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [shadcn/ui](https://ui.shadcn.com/) - UI Components
-- [Airtable](https://airtable.com/) - Database
-- [Webflow](https://webflow.com/) - Hosting & Deployment
-
----
-
-**Versione**: 1.0.0 (Fase 1)  
-**Licenza**: Proprietaria  
-**Data**: Dicembre 2025
+**Ultimo aggiornamento**: Dicembre 2024
+**Versione**: 1.0.0
