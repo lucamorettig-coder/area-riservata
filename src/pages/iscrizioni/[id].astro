@@ -1,38 +1,150 @@
 ---
 import MainLayout from '../../layouts/main.astro';
+import { getGenitoreFromSession } from '../../lib/auth';
+import { getAirtableClient } from '../../lib/airtable';
 import DettaglioIscrizione from '../../components/DettaglioIscrizione';
-import { baseUrl } from '../../lib/base-url';
 
-const { id } = Astro.params;
+console.log('[ISCRIZIONE PAGE] Inizio caricamento pagina');
 
-if (!id) {
-  return Astro.redirect(`${baseUrl}/dashboard`);
+const genitore = await getGenitoreFromSession(Astro);
+if (!genitore) {
+  console.log('[ISCRIZIONE PAGE] Genitore non trovato, redirect a login');
+  return Astro.redirect('/login');
+}
+console.log('[ISCRIZIONE PAGE] Genitore trovato:', genitore.id);
+
+const iscrizioneId = Astro.params.id;
+if (!iscrizioneId) {
+  console.log('[ISCRIZIONE PAGE] ID iscrizione mancante, redirect a dashboard');
+  return Astro.redirect('/dashboard');
+}
+console.log('[ISCRIZIONE PAGE] ID iscrizione:', iscrizioneId);
+
+const client = getAirtableClient(Astro.locals?.runtime);
+if (!client) {
+  console.log('[ISCRIZIONE PAGE] Client Airtable non disponibile, redirect a dashboard');
+  return Astro.redirect('/dashboard');
+}
+console.log('[ISCRIZIONE PAGE] Client Airtable OK');
+
+let iscrizione;
+let bambino;
+let regolamentoEsistente = null;
+let privacyAccettata = false;
+let tagliaMaglia;
+let tagliaPantaloncino;
+let tagliaTuta;
+let nomeCompleto = '';
+let categoria = 'N/A';
+let quotaTotale = 0;
+let quotaIscrizione = 0;
+let quotaKit = 0;
+let statoIscrizione = 'Incompleta';
+
+try {
+  // Carica iscrizione CON VERIFICA GENITORE
+  console.log('[ISCRIZIONE PAGE] Caricamento iscrizione...');
+  iscrizione = await client.getIscrizioneById(iscrizioneId, genitore.id!);
+  if (!iscrizione) {
+    console.log('[ISCRIZIONE PAGE] Iscrizione non trovata o non autorizzata, redirect a dashboard');
+    return Astro.redirect('/dashboard');
+  }
+  console.log('[ISCRIZIONE PAGE] Iscrizione caricata:', iscrizione.id);
+  console.log('[ISCRIZIONE PAGE] Campi iscrizione:', JSON.stringify(Object.keys(iscrizione.fields)));
+
+  // Verifica che il bambino appartenga al genitore - USA TABELLA_BAMBINI
+  const bambinoId = iscrizione.fields.TABELLA_BAMBINI?.[0];
+  if (!bambinoId) {
+    console.log('[ISCRIZIONE PAGE] Bambino ID non trovato nell\'iscrizione (campo TABELLA_BAMBINI vuoto), redirect a dashboard');
+    return Astro.redirect('/dashboard');
+  }
+  console.log('[ISCRIZIONE PAGE] Bambino ID:', bambinoId);
+
+  console.log('[ISCRIZIONE PAGE] Caricamento bambino...');
+  bambino = await client.getBambinoById(bambinoId, genitore.id!);
+  if (!bambino) {
+    console.log('[ISCRIZIONE PAGE] Bambino non trovato o non autorizzato, redirect a dashboard');
+    return Astro.redirect('/dashboard');
+  }
+  console.log('[ISCRIZIONE PAGE] Bambino caricato:', bambino.id);
+
+  // Prepara dati regolamento
+  const regolamentoFiles = iscrizione.fields.REGOLAMENTO_FIRMATO;
+  regolamentoEsistente = regolamentoFiles && regolamentoFiles.length > 0 
+    ? {
+        url: regolamentoFiles[0].url,
+        nome: regolamentoFiles[0].filename || 'Regolamento_Firmato.pdf'
+      }
+    : null;
+  console.log('[ISCRIZIONE PAGE] Regolamento esistente:', !!regolamentoEsistente);
+
+  // Prepara dati privacy - SOLO PRIVACY_MINORE, nessuna data
+  privacyAccettata = iscrizione.fields.PRIVACY_MINORE === true;
+  console.log('[ISCRIZIONE PAGE] Privacy accettata:', privacyAccettata);
+
+  // Prepara dati taglie
+  tagliaMaglia = iscrizione.fields.TAGLIA_MAGLIA;
+  tagliaPantaloncino = iscrizione.fields.TAGLIA_PANTALONCINO;
+  tagliaTuta = iscrizione.fields.TAGLIA_TUTA;
+  console.log('[ISCRIZIONE PAGE] Taglie:', { tagliaMaglia, tagliaPantaloncino, tagliaTuta });
+
+  // Prepara dati bambino - USA I CAMPI CORRETTI
+  const nomeBambino = bambino.fields.NOME_BAMBINO || '';
+  const cognomeBambino = bambino.fields.COGNOME_BAMBINO || '';
+  nomeCompleto = `${nomeBambino} ${cognomeBambino}`.trim();
+  
+  // CATEGORIA_FCI si trova nell'ISCRIZIONE, non nel bambino!
+  const categoriaField = iscrizione.fields.CATEGORIA_FCI;
+  categoria = Array.isArray(categoriaField) ? (categoriaField[0] || 'N/A') : (categoriaField || 'N/A');
+  
+  console.log('[ISCRIZIONE PAGE] Bambino:', nomeCompleto, 'Categoria:', categoria);
+
+  // Prepara dati tariffe - USA I CAMPI LOOKUP CON SUFFISSO
+  const quotaTotaleField = iscrizione.fields['QUOTA_TOTALE_ANNO (from TABELLA_TARIFFE)'];
+  quotaTotale = Array.isArray(quotaTotaleField) ? quotaTotaleField[0] || 0 : quotaTotaleField || 0;
+  
+  const quotaIscrizioneField = iscrizione.fields['IMPORTO_ISCRIZIONE (from TABELLA_TARIFFE)'];
+  quotaIscrizione = Array.isArray(quotaIscrizioneField) ? quotaIscrizioneField[0] || 0 : quotaIscrizioneField || 0;
+  
+  const quotaKitField = iscrizione.fields['IMPORTO_KIT_SCUOLA (from TABELLA_TARIFFE)'];
+  quotaKit = Array.isArray(quotaKitField) ? quotaKitField[0] || 0 : quotaKitField || 0;
+  
+  console.log('[ISCRIZIONE PAGE] Tariffe:', { quotaTotale, quotaIscrizione, quotaKit });
+
+  // Leggi STATO_ISCRIZIONE da Airtable
+  statoIscrizione = iscrizione.fields.STATO_ISCRIZIONE || 'Incompleta';
+  console.log('[ISCRIZIONE PAGE] Stato iscrizione:', statoIscrizione);
+
+  console.log('[ISCRIZIONE PAGE] Tutti i dati caricati con successo');
+} catch (error) {
+  console.error('[ISCRIZIONE PAGE] Errore caricamento:', error);
+  return Astro.redirect('/dashboard');
 }
 ---
 
 <MainLayout>
-  <div class="min-h-screen bg-background">
-    <div class="container mx-auto px-4 py-8">
-      <div class="max-w-4xl mx-auto">
-        <DettaglioIscrizione 
-          iscrizioneId={id} 
-          onBack={() => {}} 
-          client:only="react"
-        />
-      </div>
-    </div>
-  </div>
+  <DettaglioIscrizione
+    client:only="react"
+    iscrizioneId={iscrizioneId}
+    bambino={{
+      nome: nomeCompleto,
+      categoria: categoria
+    }}
+    regolamentoEsistente={regolamentoEsistente}
+    privacy={{
+      accettata: privacyAccettata,
+      dataAccettazione: undefined
+    }}
+    taglie={{
+      maglia: tagliaMaglia,
+      pantaloncino: tagliaPantaloncino,
+      tuta: tagliaTuta
+    }}
+    tariffe={{
+      quotaAnno: quotaTotale,
+      iscrizione: quotaIscrizione,
+      kit: quotaKit
+    }}
+    statoIscrizione={statoIscrizione}
+  />
 </MainLayout>
-
-<script define:vars={{ baseUrl }}>
-  // Script per gestire il back button
-  window.addEventListener('DOMContentLoaded', () => {
-    // Aggiungi listener globale per il pulsante indietro
-    document.addEventListener('click', (e) => {
-      const target = e.target;
-      if (target && target.closest('[data-action="back"]')) {
-        window.location.href = `${baseUrl}/dashboard`;
-      }
-    });
-  });
-</script>

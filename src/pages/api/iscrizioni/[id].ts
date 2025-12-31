@@ -83,15 +83,29 @@ export const PATCH: APIRoute = async (context) => {
       );
     }
 
+    // Prima recupera l'iscrizione corrente per verificare lo stato
+    const iscrizioneCorrente = await client.getIscrizioneById(id, genitore.id!);
+    if (!iscrizioneCorrente) {
+      return new Response(
+        JSON.stringify({ error: 'Iscrizione non trovata o non autorizzato' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body: any = await context.request.json();
     console.log('[API] Received fields to update:', Object.keys(body));
 
     // Crea oggetto con i campi da aggiornare
     const fieldsToUpdate: any = {};
     
-    // Privacy GDPR
-    if (body.PRIVACY_GDPR_FCI !== undefined) {
-      fieldsToUpdate.PRIVACY_GDPR_FCI = body.PRIVACY_GDPR_FCI;
+    // Privacy GDPR (vecchio campo)
+    if (body.PRIVACY_MINORE !== undefined) {
+      fieldsToUpdate.PRIVACY_MINORE = body.PRIVACY_MINORE;
+    }
+    
+    // Privacy Dati Personali (nuovo campo)
+    if (body.PRIVACY_DATI_PERSONALI !== undefined) {
+      fieldsToUpdate.PRIVACY_DATI_PERSONALI = body.PRIVACY_DATI_PERSONALI;
     }
     
     // Taglie kit
@@ -112,7 +126,23 @@ export const PATCH: APIRoute = async (context) => {
       );
     }
 
+    // Calcola lo stato iscrizione
+    // Consideriamo i valori aggiornati + quelli esistenti
+    const privacyFinal = fieldsToUpdate.PRIVACY_DATI_PERSONALI !== undefined 
+      ? fieldsToUpdate.PRIVACY_DATI_PERSONALI 
+      : iscrizioneCorrente.fields.PRIVACY_DATI_PERSONALI;
+    
+    const regolamentoFinal = iscrizioneCorrente.fields.REGOLAMENTO_FIRMATO;
+    
+    const hasPrivacy = privacyFinal === true;
+    const hasRegolamento = regolamentoFinal && regolamentoFinal.length > 0;
+    
+    // Aggiorna lo stato solo se abbiamo tutti i dati obbligatori
+    fieldsToUpdate.STATO_ISCRIZIONE = (hasPrivacy && hasRegolamento) ? 'Completa' : 'Da completare';
+
+    console.log('[API] Calculated STATO_ISCRIZIONE:', fieldsToUpdate.STATO_ISCRIZIONE);
     console.log('[API] Updating iscrizione with fields:', fieldsToUpdate);
+    
     const iscrizione = await client.updateIscrizione(id, genitore.id!, fieldsToUpdate);
     
     if (!iscrizione) {

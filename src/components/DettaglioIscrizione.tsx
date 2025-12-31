@@ -1,606 +1,565 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { baseUrl } from '../lib/base-url';
-import type { Iscrizione, Tariffa } from '../lib/airtable';
+import ActionButton from './ActionButton';
+import RegolamentoIscrizione from './RegolamentoIscrizione';
 
 interface DettaglioIscrizioneProps {
   iscrizioneId: string;
+  bambino: {
+    nome: string;
+    categoria: string;
+  };
+  regolamentoEsistente?: {
+    url: string;
+    nome: string;
+  } | null;
+  privacy: {
+    accettata: boolean;
+    dataAccettazione?: string;
+  };
+  taglie: {
+    maglia?: string;
+    pantaloncino?: string;
+    tuta?: string;
+  };
+  tariffe: {
+    quotaAnno: number;
+    iscrizione: number;
+    kit: number;
+  };
+  statoIscrizione: string;
 }
 
-export default function DettaglioIscrizione({ iscrizioneId }: DettaglioIscrizioneProps) {
-  const [iscrizione, setIscrizione] = useState<Iscrizione | null>(null);
-  const [tariffa, setTariffa] = useState<Tariffa | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Stati per gestione form
-  const [privacyGdpr, setPrivacyGdpr] = useState(false);
-  const [tagliaMaglia, setTagliaMaglia] = useState('');
-  const [tagliaPantaloncino, setTagliaPantaloncino] = useState('');
-  const [tagliaTuta, setTagliaTuta] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
-  // Stato upload regolamento
-  const [uploadingRegolamento, setUploadingRegolamento] = useState(false);
-  const [uploadRegolamentoSuccess, setUploadRegolamentoSuccess] = useState(false);
+// --- COMPONENTI UI CONDIVISI ---
 
-  useEffect(() => {
-    fetchDettaglioIscrizione();
-  }, [iscrizioneId]);
+const SectionIcon = ({ children }: { children: React.ReactNode }) => (
+  <div className="w-10 h-10 rounded-full bg-blue-900 flex items-center justify-center text-white shrink-0">
+    {children}
+  </div>
+);
 
-  const fetchDettaglioIscrizione = async () => {
+const StatusBadge = ({ label, type }: { label: string; type: 'success' | 'warning' | 'error' | 'info' }) => {
+  const styles = {
+    success: 'bg-green-100 text-green-700 border-green-200',
+    warning: 'bg-orange-100 text-orange-700 border-orange-200',
+    error: 'bg-red-50 text-red-700 border-red-200',
+    info: 'bg-blue-50 text-blue-700 border-blue-200',
+  };
+  return (
+    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${styles[type]}`}>
+      {label}
+    </span>
+  );
+};
+
+const GrayCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
+  <div className={`bg-slate-100 rounded-3xl border border-slate-200 p-6 sm:p-8 ${className}`}>
+    {children}
+  </div>
+);
+
+const StepItem = ({ status, label }: { status: 'done' | 'current' | 'pending'; label: string }) => {
+   const config = {
+      done: { iconBg: 'bg-green-500 border-green-500', iconText: 'text-white', text: 'text-slate-400 line-through decoration-slate-300' },
+      current: { iconBg: 'bg-white border-orange-500', iconText: 'text-orange-500', text: 'text-slate-900 font-bold' },
+      pending: { iconBg: 'bg-white border-slate-200', iconText: 'text-transparent', text: 'text-slate-500' }
+   };
+   
+   const style = config[status];
+
+   return (
+      <div className="flex items-center gap-4 py-3 relative z-10">
+         <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${style.iconBg}`}>
+            {status === 'done' && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+            {status === 'current' && <div className="w-2.5 h-2.5 rounded-full bg-orange-500"></div>}
+         </div>
+         <span className={`text-sm ${style.text}`}>{label}</span>
+      </div>
+   );
+};
+
+export default function DettaglioIscrizione({
+  iscrizioneId,
+  bambino,
+  regolamentoEsistente = null,
+  privacy,
+  taglie,
+  tariffe,
+  statoIscrizione
+}: DettaglioIscrizioneProps) {
+  // Stati per i campi modificabili
+  const [privacyAccepted, setPrivacyAccepted] = useState(privacy.accettata);
+  const [taglieState, setTaglieState] = useState({
+    maglia: taglie.maglia || '',
+    pantaloncino: taglie.pantaloncino || '',
+    tuta: taglie.tuta || ''
+  });
+
+  // Stati per la checklist (si aggiornano solo dopo il salvataggio)
+  const [regolamentoSalvato, setRegolamentoSalvato] = useState(!!regolamentoEsistente);
+  const [privacySalvata, setPrivacySalvata] = useState(privacy.accettata);
+  const [taglieSalvate, setTaglieSalvate] = useState(!!(taglie.maglia || taglie.pantaloncino || taglie.tuta));
+
+  const [isSavingPrivacy, setIsSavingPrivacy] = useState(false);
+  const [isSavingTaglie, setIsSavingTaglie] = useState(false);
+  const [errorPrivacy, setErrorPrivacy] = useState<string | null>(null);
+  const [errorTaglie, setErrorTaglie] = useState<string | null>(null);
+  const [successPrivacy, setSuccessPrivacy] = useState(false);
+  const [successTaglie, setSuccessTaglie] = useState(false);
+  
+  const taglieMagliaPantaloncino = ['5XS', '4XS', '3XS', '2XS', 'XS'];
+  const taglieTuta = ['110/120', '130/140'];
+
+  const handleLogout = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch dettaglio iscrizione
-      const response = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Errore nel caricamento dell\'iscrizione');
-      }
-
-      const data = await response.json() as { iscrizione: Iscrizione };
-      setIscrizione(data.iscrizione);
-      
-      // Fetch tariffa se disponibile
-      if (data.iscrizione.fields.TABELLA_TARIFFE?.[0]) {
-        const tariffaRes = await fetch(
-          `${baseUrl}/api/tariffe/${data.iscrizione.fields.TABELLA_TARIFFE[0]}`,
-          { credentials: 'include' }
-        );
-        if (tariffaRes.ok) {
-          const tariffaData = await tariffaRes.json() as { tariffa: Tariffa };
-          setTariffa(tariffaData.tariffa);
-        }
-      }
-      
-      // Popola i form con i dati esistenti
-      setPrivacyGdpr(data.iscrizione.fields.PRIVACY_GDPR_FCI || false);
-      setTagliaMaglia(data.iscrizione.fields.TAGLIA_MAGLIA || '');
-      setTagliaPantaloncino(data.iscrizione.fields.TAGLIA_PANTALONCINO || '');
-      setTagliaTuta(data.iscrizione.fields.TAGLIA_TUTA || '');
-      
-    } catch (err: any) {
-      setError(err.message || 'Errore nel caricamento');
-    } finally {
-      setLoading(false);
+      await fetch(`${baseUrl}/api/logout`, { method: 'POST' });
+      window.location.href = `${baseUrl}/login`;
+    } catch (error) {
+      console.error('Errore durante il logout:', error);
     }
   };
 
-  const handleSaveData = async () => {
+  // Funzione per ricaricare i dati dell'iscrizione da Airtable
+  const ricaricaIscrizione = async () => {
     try {
-      setSaving(true);
-      setError(null);
-      setSuccessMessage(null);
+      console.log('[DettaglioIscrizione] Ricaricamento dati iscrizione...');
+      const res = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const iscrizione = data.iscrizione;
+        
+        // Aggiorna gli stati della checklist con i dati freschi da Airtable
+        setRegolamentoSalvato(!!(iscrizione.fields.REGOLAMENTO_FIRMATO && iscrizione.fields.REGOLAMENTO_FIRMATO.length > 0));
+        setPrivacySalvata(!!iscrizione.fields.PRIVACY_MINORE);
+        setTaglieSalvate(!!(iscrizione.fields.TAGLIA_MAGLIA || iscrizione.fields.TAGLIA_PANTALONCINO || iscrizione.fields.TAGLIA_TUTA));
+        
+        console.log('[DettaglioIscrizione] Dati aggiornati con successo');
+      }
+    } catch (error) {
+      console.error('[DettaglioIscrizione] Errore ricaricamento:', error);
+    }
+  };
 
-      const response = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}`, {
-        method: 'PATCH',
+  const handleRegolamentoUploadSuccess = async () => {
+    console.log('Regolamento caricato, ricarico dati iscrizione');
+    await ricaricaIscrizione();
+  };
+
+  const handleSalvaPrivacy = async () => {
+    setIsSavingPrivacy(true);
+    setErrorPrivacy(null);
+    setSuccessPrivacy(false);
+
+    try {
+      const response = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}/privacy`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
-          PRIVACY_GDPR_FCI: privacyGdpr,
-          TAGLIA_MAGLIA: tagliaMaglia,
-          TAGLIA_PANTALONCINO: tagliaPantaloncino,
-          TAGLIA_TUTA: tagliaTuta,
+          privacyAccettata: privacyAccepted,
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json() as { error?: string };
-        throw new Error(errorData.error || 'Errore nel salvataggio');
+        throw new Error(data.error || 'Errore durante il salvataggio');
       }
 
-      const data = await response.json() as { iscrizione: Iscrizione };
-      setIscrizione(data.iscrizione);
-      setSuccessMessage('Dati salvati con successo!');
+      console.log('Privacy salvata con successo, ricarico dati');
+      setSuccessPrivacy(true);
       
-      // Nascondi il messaggio dopo 3 secondi
-      setTimeout(() => setSuccessMessage(null), 3000);
+      // RICARICA DATI DA AIRTABLE
+      await ricaricaIscrizione();
+
+      // Nascondi messaggio successo dopo 3 secondi
+      setTimeout(() => setSuccessPrivacy(false), 3000);
     } catch (err: any) {
-      setError(err.message || 'Errore nel salvataggio');
+      console.error('Errore salvataggio privacy:', err);
+      setErrorPrivacy(err.message || 'Errore durante il salvataggio della privacy');
     } finally {
-      setSaving(false);
+      setIsSavingPrivacy(false);
     }
   };
 
-  const handleUploadRegolamento = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validazione file (solo PDF)
-    if (!file.type.includes('pdf')) {
-      setError('Per favore carica un file PDF');
-      return;
-    }
-
-    // Limite dimensione (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Il file è troppo grande. Dimensione massima: 5MB');
-      return;
-    }
+  const handleSalvaTaglie = async () => {
+    setIsSavingTaglie(true);
+    setErrorTaglie(null);
+    setSuccessTaglie(false);
 
     try {
-      setUploadingRegolamento(true);
-      setError(null);
-      setUploadRegolamentoSuccess(false);
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}/regolamento`, {
+      const response = await fetch(`${baseUrl}/api/iscrizioni/${iscrizioneId}/taglie`, {
         method: 'POST',
-        credentials: 'include',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          maglia: taglieState.maglia || null,
+          pantaloncino: taglieState.pantaloncino || null,
+          tuta: taglieState.tuta || null,
+        }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json() as { error?: string };
-        throw new Error(errorData.error || 'Errore nel caricamento del regolamento');
+        throw new Error(data.error || 'Errore durante il salvataggio');
       }
 
-      const data = await response.json() as { iscrizione: Iscrizione };
-      setIscrizione(data.iscrizione);
-      setUploadRegolamentoSuccess(true);
+      console.log('Taglie salvate con successo, ricarico dati');
+      setSuccessTaglie(true);
       
-      // Nascondi il successo dopo 3 secondi
-      setTimeout(() => setUploadRegolamentoSuccess(false), 3000);
+      // RICARICA DATI DA AIRTABLE
+      await ricaricaIscrizione();
+
+      // Nascondi messaggio successo dopo 3 secondi
+      setTimeout(() => setSuccessTaglie(false), 3000);
     } catch (err: any) {
-      setError(err.message || 'Errore nel caricamento');
+      console.error('Errore salvataggio taglie:', err);
+      setErrorTaglie(err.message || 'Errore durante il salvataggio delle taglie');
     } finally {
-      setUploadingRegolamento(false);
+      setIsSavingTaglie(false);
     }
   };
 
-  const getBadgeColor = (categoria?: string) => {
-    if (!categoria) return 'bg-muted text-muted-foreground';
-    return 'bg-primary text-primary-foreground';
-  };
+  // Calcola stato checklist - USA GLI STATI "SALVATI"
+  const stepRegolamento = regolamentoSalvato ? 'done' : 'current';
+  const stepPrivacy = regolamentoSalvato ? (privacySalvata ? 'done' : 'current') : 'pending';
+  const stepTaglie = (regolamentoSalvato && privacySalvata) ? (taglieSalvate ? 'done' : 'current') : 'pending';
 
-  const getBadgeTextColor = (categoria?: string) => {
-    if (!categoria) return 'text-foreground';
-    return 'text-primary-foreground';
-  };
+  // Conta passaggi mancanti - USA GLI STATI "SALVATI"
+  const passaggiMancanti = [
+    !regolamentoSalvato,
+    !privacySalvata
+  ].filter(Boolean).length;
 
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined) return '-';
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error && !iscrizione) {
-    return (
-      <div className="space-y-4">
-        <div style={{ padding: '1rem 1.5rem', border: '1px solid var(--destructive)', backgroundColor: 'var(--destructive)', color: 'white' }}>
-          <p className="text-sm">{error}</p>
-        </div>
-        <a href={`${baseUrl}/dashboard`} className="pulsante1 is-secondary btn-standard" style={{ textDecoration: "none", display: "inline-block" }}>
-          Torna indietro
-        </a>
-      </div>
-    );
-  }
-
-  if (!iscrizione) {
-    return (
-      <div>
-        <p className="text-muted-foreground">Iscrizione non trovata</p>
-        <a href={`${baseUrl}/dashboard`} className="pulsante1 is-secondary btn-standard mt-4" style={{ textDecoration: "none", display: "inline-block" }}>
-          Torna indietro
-        </a>
-      </div>
-    );
-  }
-
-  const fields = iscrizione.fields;
-  const tariffaFields = tariffa?.fields;
+  // USA LO STATO DA AIRTABLE
+  const statoIscrizioneBadge = statoIscrizione === 'Completa' ? 'success' : 'warning';
   
-  // Estrai i dati del bambino dagli array lookup
-  const nomeBambino = fields['NOME BAMBINO']?.[0] || '-';
-  const cognomeBambino = fields['COGNOME BAMBINO']?.[0] || '-';
-  const categoria = fields.CATEGORIA?.[0];
-
   return (
-    <div style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Header con titolo e pulsante indietro */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          <h3 className="text-xl sm:text-2xl font-bold font-heading" style={{ wordBreak: 'break-word' }}>
-            Dettaglio Iscrizione
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            {nomeBambino} {cognomeBambino}
-          </p>
-        </div>
-        <a
-          href={`${baseUrl}/dashboard`}
-          className="pulsante1 is-secondary btn-standard inline-flex items-center justify-center"
-          style={{ 
-            width: '2.5rem',
-            height: '2.5rem',
-            padding: 0,
-            minWidth: 'unset',
-            textDecoration: 'none'
-          }}
-          title="Torna alla dashboard"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m15 18-6-6 6-6"/>
-          </svg>
-        </a>
-      </div>
-
-      {/* Separatore */}
-      <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
-
-      {/* Messaggio di successo globale */}
-      {successMessage && (
-        <div style={{ padding: '1rem 1.5rem', border: '1px solid var(--primary)', backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-          <p className="text-sm">{successMessage}</p>
-        </div>
-      )}
-
-      {/* Messaggio di errore globale */}
-      {error && (
-        <div style={{ padding: '1rem 1.5rem', border: '1px solid var(--destructive)', backgroundColor: 'var(--destructive)', color: 'white' }}>
-          <p className="text-sm">{error}</p>
-        </div>
-      )}
-
-      {/* Sezione: Dati Bambino */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-          <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-            Dati Bambino
-          </h4>
-        </div>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 flex flex-col gap-8">
         
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{ minWidth: '120px', margin: 0 }}>Nome e Cognome</p>
-          <p className="text-base" style={{ margin: 0 }}>
-            {nomeBambino} {cognomeBambino}
-          </p>
-        </div>
-        
-        {categoria && (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{ minWidth: '120px', margin: 0 }}>Categoria</p>
-            <span 
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium ${getBadgeColor(categoria)}`}
-              style={{ boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)' }}
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                className={getBadgeTextColor(categoria)}
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
-              <span className={getBadgeTextColor(categoria)}>{categoria}</span>
-            </span>
-          </div>
-        )}
-        
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide" style={{ minWidth: '120px', margin: 0 }}>Anno Iscrizione</p>
-          <p className="text-base" style={{ margin: 0 }}>{fields.ANNO_ISCRIZIONE || '-'}</p>
-        </div>
-      </div>
-
-      {/* Separatore */}
-      <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
-
-      {/* Sezione: Tariffe */}
-      {tariffaFields && (
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="1" x2="12" y2="23"></line>
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
+        {/* HEADER PAGINA */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+           <div className="flex items-center gap-4">
+               <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Dettaglio Iscrizione</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-slate-500 text-sm">Pratica:</span>
+                    <span className="font-semibold text-slate-800 text-sm">{bambino.nome} • 2025</span>
+                  </div>
+               </div>
+           </div>
+           
+           <div className="flex items-center gap-2">
+              <div className="hidden sm:block mr-2">
+                <StatusBadge label={statoIscrizione} type={statoIscrizioneBadge} />
               </div>
-              <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-                Tariffe Anno {tariffaFields.ANNO_ISCRIZIONE}
-              </h4>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Voce</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Importo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-border">
-                    <td className="py-2 px-3">Quota totale anno</td>
-                    <td className="py-2 px-3 text-right font-medium">{formatCurrency(tariffaFields.QUOTA_TOTALE_ANNO)}</td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="py-2 px-3">Importo iscrizione</td>
-                    <td className="py-2 px-3 text-right font-medium">{formatCurrency(tariffaFields.IMPORTO_ISCRIZIONE)}</td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="py-2 px-3">Numero rate</td>
-                    <td className="py-2 px-3 text-right font-medium">{tariffaFields.NUMERO_RATE || '-'}</td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="py-2 px-3">Importo rata</td>
-                    <td className="py-2 px-3 text-right font-medium">{formatCurrency(tariffaFields.IMPORTO_RATA)}</td>
-                  </tr>
-                  {tariffaFields.IMPORTO_KIT_SCUOLA && (
-                    <tr className="border-b border-border">
-                      <td className="py-2 px-3">Kit scuola</td>
-                      <td className="py-2 px-3 text-right font-medium">{formatCurrency(tariffaFields.IMPORTO_KIT_SCUOLA)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            {tariffaFields.SCADENZA_RATE && (
-              <div className="card-rounded bg-muted/50" style={{ padding: '1rem 1.5rem' }}>
-                <p className="text-xs text-muted-foreground mb-1">Scadenza rate</p>
-                <p className="text-sm">{tariffaFields.SCADENZA_RATE}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Separatore */}
-          <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
-        </>
-      )}
-
-      {/* Sezione: Privacy GDPR FCI */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-          </div>
-          <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-            Privacy GDPR per FCI
-          </h4>
+              <ActionButton type="back" href={`${baseUrl}/dashboard`} />
+              <ActionButton type="logout" onClick={handleLogout} />
+           </div>
         </div>
-        
-        <p className="text-sm text-muted-foreground">
-          Per iscrivere il bambino alla Federazione Ciclistica Italiana (FCI) è necessario fornire il consenso al trattamento dei dati personali del minore secondo il GDPR.
-        </p>
-        
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={privacyGdpr}
-            onChange={(e) => setPrivacyGdpr(e.target.checked)}
-            className="mt-1"
-          />
-          <span className="text-sm">
-            Acconsento al trattamento dei dati personali del minore per l'iscrizione presso la FCI secondo quanto previsto dal Regolamento UE 2016/679 (GDPR)
-          </span>
-        </label>
-      </div>
 
-      {/* Separatore */}
-      <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
+        {/* CONTENUTO PRINCIPALE */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* COLONNA SINISTRA: TASKS */}
+          <div className="lg:col-span-8 flex flex-col gap-8">
 
-      {/* Sezione: Kit Scuola */}
-      {tariffaFields?.DESCRIZIONE_KIT && (
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                  <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                </svg>
-              </div>
-              <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-                Kit Scuola
-              </h4>
-            </div>
-            
-            <div className="card-rounded bg-muted/50" style={{ padding: '1rem 1.5rem' }}>
-              <p className="text-sm whitespace-pre-line">{tariffaFields.DESCRIZIONE_KIT}</p>
-            </div>
-            
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Taglia Maglia
-                </label>
-                <input
-                  type="text"
-                  value={tagliaMaglia}
-                  onChange={(e) => setTagliaMaglia(e.target.value)}
-                  placeholder="es. S, M, L"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Taglia Pantaloncino
-                </label>
-                <input
-                  type="text"
-                  value={tagliaPantaloncino}
-                  onChange={(e) => setTagliaPantaloncino(e.target.value)}
-                  placeholder="es. S, M, L"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Taglia Tuta
-                </label>
-                <input
-                  type="text"
-                  value={tagliaTuta}
-                  onChange={(e) => setTagliaTuta(e.target.value)}
-                  placeholder="es. S, M, L"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-                />
-              </div>
-            </div>
-          </div>
+             {/* 1. SEZIONE REGOLAMENTO */}
+             <RegolamentoIscrizione 
+               iscrizioneId={iscrizioneId}
+               regolamentoEsistente={regolamentoEsistente}
+               onUploadSuccess={handleRegolamentoUploadSuccess}
+             />
 
-          {/* Separatore */}
-          <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
-        </>
-      )}
-
-      {/* Sezione: Regolamento Firmato */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-          </div>
-          <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-            Regolamento Firmato
-          </h4>
-        </div>
-        
-        <p className="text-sm text-muted-foreground">
-          Carica il regolamento della scuola firmato (PDF). Puoi scaricare il modulo, firmarlo e caricarlo qui.
-        </p>
-        
-        {fields.REGOLAMENTO_FIRMATO_FILE && fields.REGOLAMENTO_FIRMATO_FILE.length > 0 ? (
-          <div className="card-rounded border border-border bg-muted/30" style={{ padding: '1rem' }}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary flex-shrink-0">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">
-                    {fields.REGOLAMENTO_FIRMATO_FILE[0].filename || 'Regolamento firmato'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(fields.REGOLAMENTO_FIRMATO_FILE[0].size / 1024).toFixed(1)} KB
-                  </p>
+             {/* 2. SEZIONE PRIVACY */}
+             <section className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <SectionIcon>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                      </SectionIcon>
+                      <h4 className="text-xl font-bold text-slate-700 uppercase tracking-wide">Privacy</h4>
+                   </div>
+                   <StatusBadge label={privacySalvata ? "Confermato" : "Da confermare"} type={privacySalvata ? "success" : "warning"} />
                 </div>
-              </div>
-              <a
-                href={fields.REGOLAMENTO_FIRMATO_FILE[0].url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="pulsante1 is-secondary btn-standard flex-shrink-0"
-              >
-                Visualizza
-              </a>
-            </div>
-            
-            {/* Possibilità di sostituire */}
-            <div className="mt-4 pt-4 border-t border-border">
-              <label className="pulsante1 btn-standard inline-block cursor-pointer">
-                {uploadingRegolamento ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                    Caricamento...
-                  </span>
-                ) : (
-                  'Sostituisci file'
+
+                <GrayCard>
+                   {/* Messaggio successo */}
+                   {successPrivacy && (
+                     <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 mb-4">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0 mt-0.5">
+                         <polyline points="20 6 9 17 4 12"></polyline>
+                       </svg>
+                       <p className="text-sm text-green-700 font-medium">Privacy salvata con successo!</p>
+                     </div>
+                   )}
+
+                   {/* Messaggio errore */}
+                   {errorPrivacy && (
+                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 mb-4">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600 shrink-0 mt-0.5">
+                         <circle cx="12" cy="12" r="10"></circle>
+                         <line x1="12" y1="8" x2="12" y2="12"></line>
+                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                       </svg>
+                       <p className="text-sm text-red-700">{errorPrivacy}</p>
+                     </div>
+                   )}
+
+                   <div className="bg-white rounded-3xl border border-slate-200 p-5 h-40 overflow-y-auto text-xs text-slate-600 mb-5 leading-relaxed shadow-sm">
+                      <p className="font-bold text-slate-800 mb-2 block">Informativa Privacy per il trattamento dei dati personali</p>
+                      <p>Ai sensi del Regolamento UE 2016/679 (GDPR), i dati personali del minore saranno trattati dalla Scuola di Ciclismo per le finalità istituzionali e organizzative relative all'iscrizione presso la Federazione Ciclistica Italiana (FCI), la gestione delle attività sportive, formative ed educative, comunicazioni relative ai corsi e agli eventi, adempimenti amministrativi e contabili necessari alla corretta gestione dell'iscrizione.</p>
+                      <p className="mt-2">I dati saranno conservati per il tempo strettamente necessario alla gestione dell'iscrizione e per gli obblighi di legge previsti dalla normativa vigente. Il genitore o tutore legale ha diritto di accedere, rettificare, cancellare i dati e limitarne il trattamento secondo le modalità previste dal GDPR.</p>
+                      <p className="mt-2">Per maggiori informazioni o per esercitare i diritti previsti dalla normativa privacy: privacy@scuolaciclismo.it</p>
+                   </div>
+                   
+                   <div className="flex items-start gap-3 p-3 -ml-3 hover:bg-white/50 rounded-xl transition-colors cursor-pointer group select-none">
+                      <div className="relative flex items-center mt-0.5 shrink-0">
+                        <input 
+                          type="checkbox" 
+                          checked={privacyAccepted}
+                          onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                          className="w-5 h-5 rounded border-slate-300 text-blue-900 focus:ring-blue-900 cursor-pointer" 
+                        />
+                      </div>
+                      <span className="text-sm text-slate-700 font-medium group-hover:text-slate-900 transition-colors leading-snug break-words">
+                         Dichiaro di aver letto l'informativa e acconsento al trattamento dei dati personali del minore per l'iscrizione presso la FCI <span className="text-red-500">*</span>
+                      </span>
+                   </div>
+
+                   <div className="flex justify-end mt-6 pt-6 border-t border-slate-200/60">
+                      <button 
+                        disabled={!privacyAccepted || isSavingPrivacy} 
+                        onClick={handleSalvaPrivacy}
+                        className="h-10 rounded-full px-8 text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                      >
+                         {isSavingPrivacy ? (
+                           <>
+                             <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                             </svg>
+                             Salvataggio...
+                           </>
+                         ) : (
+                           'Salva consenso'
+                         )}
+                      </button>
+                   </div>
+                </GrayCard>
+             </section>
+
+             {/* 3. SEZIONE KIT SCUOLA */}
+             <section className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <SectionIcon>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"></path></svg>
+                      </SectionIcon>
+                      <h4 className="text-xl font-bold text-slate-700 uppercase tracking-wide">Kit Scuola</h4>
+                   </div>
+                   <StatusBadge label="Opzionale" type="info" />
+                </div>
+
+                <GrayCard>
+                   {/* Messaggio successo */}
+                   {successTaglie && (
+                     <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3 mb-4">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0 mt-0.5">
+                         <polyline points="20 6 9 17 4 12"></polyline>
+                       </svg>
+                       <p className="text-sm text-green-700 font-medium">Taglie salvate con successo!</p>
+                     </div>
+                   )}
+
+                   {/* Messaggio errore */}
+                   {errorTaglie && (
+                     <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 mb-4">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600 shrink-0 mt-0.5">
+                         <circle cx="12" cy="12" r="10"></circle>
+                         <line x1="12" y1="8" x2="12" y2="12"></line>
+                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                       </svg>
+                       <p className="text-sm text-red-700">{errorTaglie}</p>
+                     </div>
+                   )}
+
+                   <div className="flex items-start gap-3 mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5 text-slate-600"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                      <p className="text-xs text-slate-600">Seleziona le taglie per il kit. Questa informazione ci aiuta a preparare il materiale corretto per tuo figlio.</p>
+                   </div>
+
+                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      {/* Maglia */}
+                      <div className="flex flex-col gap-2">
+                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Taglia Maglia</label>
+                         <div className="relative">
+                            <select 
+                              value={taglieState.maglia}
+                              onChange={(e) => setTaglieState({ ...taglieState, maglia: e.target.value })}
+                              className="w-full h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none appearance-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100 cursor-pointer shadow-sm"
+                            >
+                               <option value="">Seleziona...</option>
+                               {taglieMagliaPantaloncino.map(taglia => (
+                                  <option key={taglia} value={taglia}>{taglia}</option>
+                               ))}
+                            </select>
+                            <div className="absolute right-4 top-4 pointer-events-none text-slate-400">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* Pantaloncino */}
+                      <div className="flex flex-col gap-2">
+                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Taglia Pantaloncino</label>
+                         <div className="relative">
+                            <select 
+                              value={taglieState.pantaloncino}
+                              onChange={(e) => setTaglieState({ ...taglieState, pantaloncino: e.target.value })}
+                              className="w-full h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none appearance-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100 cursor-pointer shadow-sm"
+                            >
+                               <option value="">Seleziona...</option>
+                               {taglieMagliaPantaloncino.map(taglia => (
+                                  <option key={taglia} value={taglia}>{taglia}</option>
+                               ))}
+                            </select>
+                            <div className="absolute right-4 top-4 pointer-events-none text-slate-400">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* Tuta */}
+                      <div className="flex flex-col gap-2">
+                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wide ml-1">Taglia Tuta</label>
+                         <div className="relative">
+                            <select 
+                              value={taglieState.tuta}
+                              onChange={(e) => setTaglieState({ ...taglieState, tuta: e.target.value })}
+                              className="w-full h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none appearance-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100 cursor-pointer shadow-sm"
+                            >
+                               <option value="">Seleziona...</option>
+                               {taglieTuta.map(taglia => (
+                                  <option key={taglia} value={taglia}>{taglia}</option>
+                               ))}
+                            </select>
+                            <div className="absolute right-4 top-4 pointer-events-none text-slate-400">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="flex justify-end mt-8 pt-6 border-t border-slate-200/60">
+                      <button 
+                        onClick={handleSalvaTaglie}
+                        disabled={isSavingTaglie}
+                        className="h-10 rounded-full px-8 text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                      >
+                         {isSavingTaglie ? (
+                           <>
+                             <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                             </svg>
+                             Salvataggio...
+                           </>
+                         ) : (
+                           'Salva preferenze'
+                         )}
+                      </button>
+                   </div>
+                </GrayCard>
+             </section>
+
+          </div>
+
+          {/* COLONNA DESTRA: SIDEBAR (Sticky) */}
+          <div className="lg:col-span-4 flex flex-col gap-6 lg:sticky lg:top-6">
+             
+             {/* 1. CARD RIEPILOGO */}
+             <GrayCard className="!p-0 overflow-hidden">
+                <div className="p-6 border-b border-slate-200">
+                   <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4">Dati Iscritto</h5>
+                   <div className="flex justify-between items-center mb-2">
+                      <span className="text-slate-600 text-sm font-medium">Nominativo</span>
+                      <span className="font-bold text-slate-900 text-sm">{bambino.nome}</span>
+                   </div>
+                   <div className="flex justify-between items-center">
+                      <span className="text-slate-600 text-sm font-medium">Categoria</span>
+                      <span className="bg-blue-900 text-white px-2 py-0.5 rounded text-[10px] font-bold">{bambino.categoria}</span>
+                   </div>
+                </div>
+
+                <div className="p-6 bg-white">
+                   <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4">Riepilogo Costi</h5>
+                   <div className="space-y-3 text-sm">
+                      <div className="flex justify-between text-slate-600">
+                         <span>Quota anno</span>
+                         <span className="font-bold text-slate-900">{tariffe.quotaAnno.toFixed(2)} €</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 text-xs">
+                         <span>Iscrizione</span>
+                         <span>{tariffe.iscrizione.toFixed(2)} €</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 text-xs">
+                         <span>Kit scuola</span>
+                         <span>{tariffe.kit.toFixed(2)} €</span>
+                      </div>
+                      <div className="h-px bg-slate-100 my-2"></div>
+                      <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg -mx-2">
+                         <span className="font-bold text-slate-700 text-xs">Scadenza Rate</span>
+                         <span className="text-xs text-slate-500 font-mono">GEN • MAR • MAG</span>
+                      </div>
+                   </div>
+                </div>
+             </GrayCard>
+
+             {/* 2. CARD STATO */}
+             <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-6 flex items-center gap-2">
+                   <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                   Stato Avanzamento
+                </h5>
+                
+                <div className="space-y-0 relative pl-2">
+                   <div className="absolute left-[15px] top-3 bottom-6 w-0.5 bg-slate-100"></div>
+
+                   <StepItem status="done" label="Dati bambino" />
+                   <StepItem status={stepRegolamento} label="Regolamento firmato" />
+                   <StepItem status={stepPrivacy} label="Privacy trattamento dati" />
+                   <StepItem status={stepTaglie} label="Taglie kit scuola (Opz.)" />
+                </div>
+                
+                {passaggiMancanti > 0 && (
+                  <div className="mt-8 p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3 items-start">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-500 shrink-0 mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                     <div>
+                        <p className="text-xs font-bold text-orange-800 mb-1">Attenzione</p>
+                        <p className="text-xs text-orange-700 leading-relaxed">
+                           Mancano <strong>{passaggiMancanti} passaggi obbligatori</strong> per completare l'iscrizione di {bambino.nome.split(' ')[0]}.
+                        </p>
+                     </div>
+                  </div>
                 )}
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleUploadRegolamento}
-                  className="hidden"
-                  disabled={uploadingRegolamento}
-                />
-              </label>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label className="pulsante1 btn-standard inline-block cursor-pointer">
-              {uploadingRegolamento ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                  Caricamento...
-                </span>
-              ) : (
-                'Carica Regolamento (PDF)'
-              )}
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleUploadRegolamento}
-                className="hidden"
-                disabled={uploadingRegolamento}
-              />
-            </label>
-            <p className="text-xs text-muted-foreground mt-2">
-              Dimensione massima: 5MB • Formato: PDF
-            </p>
-          </div>
-        )}
-        
-        {uploadRegolamentoSuccess && (
-          <div style={{ padding: '0.75rem 1rem', border: '1px solid var(--primary)', backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}>
-            <p className="text-sm">Regolamento caricato con successo!</p>
-          </div>
-        )}
-      </div>
 
-      {/* Separatore */}
-      <div style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
+                {passaggiMancanti === 0 && (
+                  <div className="mt-8 p-4 bg-green-50 rounded-2xl border border-green-200 flex gap-3 items-start">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0 mt-0.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                     <div>
+                        <p className="text-xs font-bold text-green-800 mb-1">Completo</p>
+                        <p className="text-xs text-green-700 leading-relaxed">
+                           Tutti i passaggi obbligatori sono stati completati!
+                        </p>
+                     </div>
+                  </div>
+                )}
+             </div>
 
-      {/* Pulsante Salva */}
-      <div className="flex justify-end gap-4">
-        <button
-          onClick={handleSaveData}
-          disabled={saving}
-          className="pulsante1 btn-standard"
-        >
-          {saving ? (
-            <span className="flex items-center gap-2">
-              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-              Salvataggio...
-            </span>
-          ) : (
-            'Salva Modifiche'
-          )}
-        </button>
+          </div>
+
+        </div>
       </div>
     </div>
   );

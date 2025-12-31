@@ -132,7 +132,7 @@ export default function ModificaProfiloForm({ genitore }: ModificaProfiloFormPro
 
   return (
     <form onSubmit={handleSubmit} style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Titolo principale */}
+      {/* Titolo principale - SENZA back button perché c'è Annulla in basso */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <h3 className="text-xl sm:text-2xl font-bold font-heading" style={{ wordBreak: 'break-word' }}>
           Modifica Profilo

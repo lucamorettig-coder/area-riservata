@@ -1,7 +1,6 @@
 ---
 import MainLayout from '../../layouts/main.astro';
 import DettaglioBambino from '../../components/DettaglioBambino';
-import FotoBambino from '../../components/FotoBambino';
 import CertificatoMedico from '../../components/CertificatoMedico';
 import IscrizioniBambino from '../../components/IscrizioniBambino';
 import { getGenitoreFromSession } from '../../lib/auth';
@@ -30,11 +29,18 @@ if (!client) {
 }
 
 let bambino;
+let iscrizioniAttive = false;
+
 try {
   bambino = await client.getBambinoById(bambinoId, genitore.id!);
   
   if (!bambino) {
     return Astro.redirect('/dashboard');
+  }
+
+  // Controlla se il bambino ha iscrizioni attive
+  if (bambino.fields.ISCRIZIONI && bambino.fields.ISCRIZIONI.length > 0) {
+    iscrizioniAttive = true;
   }
 } catch (error) {
   console.error('Errore nel recupero bambino:', error);
@@ -42,7 +48,6 @@ try {
 }
 
 // Prepara i dati del certificato medico
-// CERTIFICATO_MEDICO_FILE è un array di attachment, prendiamo il primo se esiste
 const certificatoFile = bambino.fields.CERTIFICATO_MEDICO_FILE && 
                         bambino.fields.CERTIFICATO_MEDICO_FILE.length > 0 
                           ? bambino.fields.CERTIFICATO_MEDICO_FILE[0].url 
@@ -61,276 +66,250 @@ const fotoUrl = bambino.fields.FOTO_BAMBINO && bambino.fields.FOTO_BAMBINO.lengt
 ---
 
 <MainLayout>
-<div class="min-h-screen bg-background">
-<div class="container-medium" style="padding-top: 2rem; padding-bottom: 2rem;">
-  <div class="card-rounded border bg-card text-card-foreground shadow-sm" style="display: flex; flex-direction: column; gap: 2rem;">
-    
-    <!-- Header: Titolo e Badge Certificato -->
-    <div style="padding: 1rem 1.5rem 0 1.5rem;">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <h3 class="text-xl sm:text-2xl font-bold font-heading" style={{ wordBreak: 'break-word' }}>
-              Dettaglio Bambino
-            </h3>
-            <p class="text-sm text-muted-foreground">
-              {bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}
-            </p>
-          </div>
-          
-          <!-- Badge Certificato -->
-          {certificato.stato && (
-            <div 
-              class="card-rounded"
-              style={{
-                backgroundColor: certificato.stato.toLowerCase() === 'valido' ? 'var(--_redesign---palette-brand--verde)' : 
-                                certificato.stato.toLowerCase() === 'in scadenza' ? 'var(--_redesign---palette-brand--arancio)' :
-                                certificato.stato.toLowerCase() === 'scaduto' ? 'var(--_redesign---palette-brand--rosso)' : 
-                                'var(--muted)',
-                padding: '0.5rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                flexShrink: 0
-              }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={certificato.stato && ['valido', 'in scadenza', 'scaduto'].includes(certificato.stato.toLowerCase()) ? 'white' : 'var(--foreground)'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <line x1="10" y1="9" x2="8" y2="9"></line>
-              </svg>
-              <span
-                style={{
-                  color: certificato.stato && ['valido', 'in scadenza', 'scaduto'].includes(certificato.stato.toLowerCase()) ? 'white' : 'var(--foreground)',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  letterSpacing: '0.05em'
-                }}
-              >
-                Certificato: <span style={{ textTransform: 'uppercase' }}>{certificato.stato || 'Non disponibile'}</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+  <style is:global>
+    .action-button {
+      background-color: #1e3a8a !important;
+      color: white !important;
+      border: none !important;
+    }
+    .action-button:hover {
+      background-color: #1e40af !important;
+    }
+  </style>
 
-    <!-- Separatore -->
-    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
-
-    <!-- Layout a due colonne: Foto + Dati Anagrafici -->
-    <div style="padding: 0 1.5rem;">
-      <div class="grid grid-cols-1 md:grid-cols-[300px_1fr]" style="gap: 2rem; align-items: start;">
-        <!-- Colonna Foto (più stretta) -->
-        <div>
-          <FotoBambino 
-            client:only="react" 
-            bambinoId={bambinoId}
-            fotoUrl={fotoUrl}
-            nomeBambino={`${bambino.fields.NOME_BAMBINO} ${bambino.fields.COGNOME_BAMBINO}`}
-          />
-        </div>
+  <div class="min-h-screen bg-background">
+    <div class="container-medium" style="padding-top: 2rem; padding-bottom: 2rem;">
+      <div class="card-rounded border bg-card text-card-foreground shadow-sm">
         
-        <!-- Colonna Dati Anagrafici (più larga) -->
-        <div>
-          <DettaglioBambino 
-            client:only="react" 
-            bambino={bambino.fields}
-            certificatoStato={certificato.stato}
-            bambinoId={bambinoId}
-            showActions={false}
-          />
+        <div class="min-h-screen bg-white">
+          <div class="max-w-5xl mx-auto p-4 sm:p-6 flex flex-col gap-8">
+            
+            {/* --- HEADER --- */}
+            <div class="flex flex-row justify-between items-start gap-4">
+              <div class="flex flex-col gap-1">
+                <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">
+                  Dettaglio Bambino
+                </h3>
+                <p class="text-sm text-slate-600">
+                  Gestione profilo di <span class="font-semibold text-slate-800">{bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}</span>
+                </p>
+              </div>
+              
+              {/* Action Buttons - Top Right */}
+              <div class="flex items-center gap-2">
+                <a
+                  href={`${baseUrl}/dashboard`}
+                  class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors no-underline"
+                  title="Indietro"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                  </svg>
+                </a>
+
+                <a
+                  href={`${baseUrl}/bambini/${bambinoId}/modifica`}
+                  class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors no-underline"
+                  title="Modifica"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </a>
+
+                <button
+                  id="delete-button"
+                  class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Elimina"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                </button>
+
+                <button
+                  id="logout-button"
+                  class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Esci"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Badge Certificato (Pillola) - sotto il titolo */}
+            {certificato.stato && (
+              <div class="flex justify-start">
+                <span
+                  class:list={[
+                    "rounded-full px-4 py-1 text-sm font-bold uppercase tracking-wide flex items-center gap-2",
+                    {
+                      'bg-green-600 text-white': certificato.stato.toLowerCase() === 'valido',
+                      'bg-orange-500 text-white': certificato.stato.toLowerCase() === 'in scadenza',
+                      'bg-red-600 text-white': certificato.stato.toLowerCase() === 'scaduto',
+                      'bg-slate-200 text-slate-800': !['valido', 'in scadenza', 'scaduto'].includes(certificato.stato.toLowerCase()),
+                    }
+                  ]}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  {certificato.stato}
+                </span>
+              </div>
+            )}
+
+            <hr class="border-slate-200" />
+
+            {/* --- SEZIONE: DATI ANAGRAFICI + FOTO --- */}
+            <DettaglioBambino 
+              client:only="react" 
+              bambino={bambino.fields}
+              bambinoId={bambinoId}
+              fotoUrl={fotoUrl}
+            />
+
+            <hr class="border-slate-200" />
+
+            {/* --- SEZIONE: CERTIFICATO MEDICO --- */}
+            <CertificatoMedico 
+              client:only="react" 
+              bambinoId={bambinoId}
+              certificato={certificato}
+            />
+
+            <hr class="border-slate-200" />
+
+            {/* --- SEZIONE: ISCRIZIONI --- */}
+            <IscrizioniBambino 
+              client:only="react" 
+              bambinoId={bambinoId}
+            />
+
+          </div>
         </div>
+
       </div>
     </div>
+  </div>
 
-    <!-- Separatore -->
-    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
-
-    <!-- Sezione Certificato Medico -->
-    <div style="padding: 0 1.5rem;">
-      <CertificatoMedico 
-        client:only="react" 
-        bambinoId={bambinoId}
-        certificato={certificato}
-      />
-    </div>
-
-    <!-- Separatore -->
-    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
-
-    <!-- Sezione Iscrizioni -->
-    <div style="padding: 0 1.5rem;">
-      <IscrizioniBambino 
-        client:only="react" 
-        bambinoId={bambinoId}
-      />
-    </div>
-
-    <!-- Separatore -->
-    <div style="height: 1px; background-color: var(--border); margin: 0 1.5rem;"></div>
-
-    <!-- Pulsanti azione in fondo -->
-    <div style="padding: 0 1.5rem 1.5rem 1.5rem;">
-      <!-- Desktop: pulsanti con testo -->
-      <div class="hidden sm:flex" style="gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-        <a
-          href={`${baseUrl}/dashboard`}
-          class="pulsante1 is-secondary btn-standard inline-flex items-center justify-center gap-2"
-          style="text-decoration: none; padding-left: 1.5rem; padding-right: 1.5rem;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m15 18-6-6 6-6"/>
-          </svg>
-          Indietro
-        </a>
-
-        <a
-          href={`${baseUrl}/bambini/${bambinoId}/modifica`}
-          class="pulsante1 btn-standard inline-flex items-center justify-center gap-2"
-          style="text-decoration: none; padding-left: 1.5rem; padding-right: 1.5rem;"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
-          </svg>
-          Modifica
-        </a>
-
+  {/* Dialog di conferma eliminazione */}
+  <div
+    id="delete-dialog"
+    style="position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; z-index: 50;"
+  >
+    <div class="bg-white rounded-3xl p-6 max-w-md mx-4 shadow-xl">
+      <h3 class="text-xl font-bold text-slate-900 mb-3">Conferma Eliminazione</h3>
+      <p class="text-sm text-slate-600 mb-6" id="delete-message">
+        Sei sicuro di voler eliminare <strong class="text-slate-900">{bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}</strong>? Questa azione non può essere annullata.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-end">
         <button
-          id="delete-button"
-          class="pulsante1 btn-standard inline-flex items-center justify-center gap-2"
-          style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none; padding-left: 1.5rem; padding-right: 1.5rem; text-decoration: none;"
+          id="cancel-delete"
+          class="h-10 rounded-full px-6 text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-white text-slate-700 border border-slate-300 hover:bg-slate-50"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6h18"/>
-            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-          </svg>
+          Annulla
+        </button>
+        <button
+          id="confirm-delete"
+          class="h-10 rounded-full px-6 text-sm font-semibold transition-colors flex items-center justify-center gap-2 bg-red-600 text-white hover:bg-red-700"
+        >
           Elimina
         </button>
       </div>
-
-      <!-- Mobile: pulsanti solo icone -->
-      <div class="flex sm:hidden" style="gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
-        <a
-          href={`${baseUrl}/dashboard`}
-          class="pulsante1 is-secondary btn-standard inline-flex items-center justify-center"
-          style="text-decoration: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
-          title="Indietro"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m15 18-6-6 6-6"/>
-          </svg>
-        </a>
-
-        <a
-          href={`${baseUrl}/bambini/${bambinoId}/modifica`}
-          class="pulsante1 btn-standard inline-flex items-center justify-center"
-          style="text-decoration: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
-          title="Modifica"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>
-          </svg>
-        </a>
-
-        <button
-          id="delete-button-mobile"
-          class="pulsante1 btn-standard inline-flex items-center justify-center"
-          style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none; width: 2.5rem; height: 2.5rem; padding: 0; min-width: unset;"
-          title="Elimina"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 6h18"/>
-            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-          </svg>
-        </button>
-      </div>
     </div>
   </div>
-</div>
-</div>
 
-<!-- Dialog di conferma eliminazione -->
-<div
-  id="delete-dialog"
-  style="position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center; z-index: 50;"
->
-  <div
-    class="card-rounded bg-card"
-    style="padding: 1.5rem; max-width: 400px; margin: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2);"
-  >
-    <h3 class="text-lg font-bold mb-4">Conferma Eliminazione</h3>
-    <p class="text-sm text-muted-foreground mb-6">
-      Sei sicuro di voler eliminare <strong>{bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}</strong>? Questa azione non può essere annullata.
-    </p>
-    <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-      <button
-        id="cancel-delete"
-        class="pulsante1 is-secondary btn-standard"
-      >
-        Annulla
-      </button>
-      <button
-        id="confirm-delete"
-        class="pulsante1 btn-standard"
-        style="background-color: var(--_redesign---palette-brand--rosso); color: white; border: none;"
-      >
-        Elimina
-      </button>
-    </div>
-  </div>
-</div>
+  <script define:vars={{ baseUrl, bambinoId, iscrizioniAttive }}>
+    const deleteButton = document.getElementById('delete-button');
+    const deleteDialog = document.getElementById('delete-dialog');
+    const deleteMessage = document.getElementById('delete-message');
+    const cancelButton = document.getElementById('cancel-delete');
+    const confirmButton = document.getElementById('confirm-delete');
+    const logoutButton = document.getElementById('logout-button');
 
-<script define:vars={{ baseUrl, bambinoId }}>
-  const deleteButton = document.getElementById('delete-button');
-  const deleteButtonMobile = document.getElementById('delete-button-mobile');
-  const deleteDialog = document.getElementById('delete-dialog');
-  const cancelButton = document.getElementById('cancel-delete');
-  const confirmButton = document.getElementById('confirm-delete');
+    // Gestione logout
+    logoutButton?.addEventListener('click', async () => {
+      try {
+        await fetch(`${baseUrl}/api/logout`, { method: 'POST' });
+        window.location.href = `${baseUrl}/login`;
+      } catch (error) {
+        console.error('Errore durante il logout:', error);
+      }
+    });
 
-  deleteButton?.addEventListener('click', () => {
-    if (deleteDialog) deleteDialog.style.display = 'flex';
-  });
-
-  deleteButtonMobile?.addEventListener('click', () => {
-    if (deleteDialog) deleteDialog.style.display = 'flex';
-  });
-
-  cancelButton?.addEventListener('click', () => {
-    if (deleteDialog) deleteDialog.style.display = 'none';
-  });
-
-  deleteDialog?.addEventListener('click', (e) => {
-    if (e.target === deleteDialog) {
-      deleteDialog.style.display = 'none';
-    }
-  });
-
-  confirmButton?.addEventListener('click', async () => {
-    confirmButton.disabled = true;
-    confirmButton.textContent = 'Eliminazione...';
-    
-    try {
-      const res = await fetch(`${baseUrl}/api/bambini/${bambinoId}`, {
-        method: 'DELETE',
-      });
-      
-      if (res.ok) {
-        window.location.href = `${baseUrl}/dashboard`;
+    // Gestione eliminazione
+    deleteButton?.addEventListener('click', () => {
+      if (iscrizioniAttive) {
+        // Mostra messaggio di errore nel modale
+        if (deleteMessage) {
+          deleteMessage.innerHTML = '<span class="text-red-600 font-semibold">⚠️ Impossibile eliminare questo bambino perché ha iscrizioni attive.</span><br/><span class="text-sm text-slate-600 mt-2 block">Per eliminare il bambino, è necessario prima eliminare o completare tutte le iscrizioni associate.</span>';
+        }
+        // Nascondi il pulsante conferma
+        if (confirmButton) {
+          confirmButton.style.display = 'none';
+        }
+        // Cambia il testo del pulsante annulla in "Ho capito"
+        if (cancelButton) {
+          cancelButton.textContent = 'Ho capito';
+        }
       } else {
-        alert('Errore durante l\'eliminazione');
+        // Ripristina messaggio originale se necessario
+        if (deleteMessage) {
+          deleteMessage.innerHTML = 'Sei sicuro di voler eliminare questo bambino? Questa azione non può essere annullata.';
+        }
+        if (confirmButton) {
+          confirmButton.style.display = 'flex';
+        }
+        if (cancelButton) {
+          cancelButton.textContent = 'Annulla';
+        }
+      }
+      
+      if (deleteDialog) deleteDialog.style.display = 'flex';
+    });
+
+    cancelButton?.addEventListener('click', () => {
+      if (deleteDialog) deleteDialog.style.display = 'none';
+    });
+
+    deleteDialog?.addEventListener('click', (e) => {
+      if (e.target === deleteDialog) {
+        deleteDialog.style.display = 'none';
+      }
+    });
+
+    confirmButton?.addEventListener('click', async () => {
+      confirmButton.disabled = true;
+      confirmButton.textContent = 'Eliminazione...';
+      
+      try {
+        const res = await fetch(`${baseUrl}/api/bambini/${bambinoId}`, {
+          method: 'DELETE',
+        });
+        
+        if (res.ok) {
+          window.location.href = `${baseUrl}/dashboard`;
+        } else {
+          const data = await res.json();
+          alert(data.error || 'Errore durante l\'eliminazione');
+          confirmButton.disabled = false;
+          confirmButton.textContent = 'Elimina';
+        }
+      } catch (error) {
+        alert('Errore di rete');
         confirmButton.disabled = false;
         confirmButton.textContent = 'Elimina';
       }
-    } catch (error) {
-      alert('Errore di rete');
-      confirmButton.disabled = false;
-      confirmButton.textContent = 'Elimina';
-    }
-  });
-</script>
+    });
+  </script>
 </MainLayout>

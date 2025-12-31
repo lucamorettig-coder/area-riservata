@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { baseUrl } from '../lib/base-url';
+import { normalizeLookup } from '../lib/airtable';
 
 interface Iscrizione {
   id: string;
@@ -9,9 +10,10 @@ interface Iscrizione {
     TABELLA_TARIFFE: string[];
     DATA_ISCRIZIONE?: string;
     STATO_ISCRIZIONE?: string;
-    ANNO_ISCRIZIONE?: string;
-    'NOME BAMBINO'?: string[];
-    'COGNOME BAMBINO'?: string[];
+    CATEGORIA_FCI?: string | string[];
+    'NOME_BAMBINO (from TABELLA_BAMBINI)'?: string[];
+    'COGNOME_BAMBINO (from TABELLA_BAMBINI)'?: string[];
+    'ANNO_ISCRIZIONE (from TABELLA_TARIFFE)'?: string[];
   };
 }
 
@@ -24,30 +26,40 @@ interface ErrorResponse {
 }
 
 interface ListaIscrizioniProps {
-  onSelectIscrizione?: (id: string) => void;
-  onNuovaIscrizione?: () => void;
+  bambinoId?: string; // ✅ ORA OPZIONALE (undefined = tutte le iscrizioni del genitore)
+  onSelectIscrizione: (id: string) => void;
+  onNuovaIscrizione: () => void;
 }
 
-export default function ListaIscrizioni({ onSelectIscrizione, onNuovaIscrizione }: ListaIscrizioniProps) {
+export default function ListaIscrizioni({ bambinoId, onSelectIscrizione, onNuovaIscrizione }: ListaIscrizioniProps) {
   const [iscrizioni, setIscrizioni] = useState<Iscrizione[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchIscrizioni();
-  }, []);
+  }, [bambinoId]);
 
   const fetchIscrizioni = async () => {
     try {
-      const response = await fetch(`${baseUrl}/api/iscrizioni`);
+      // ✅ Se bambinoId è undefined, fetch senza query param (tutte le iscrizioni del genitore)
+      const url = bambinoId 
+        ? `${baseUrl}/api/iscrizioni?bambinoId=${bambinoId}`
+        : `${baseUrl}/api/iscrizioni`;
+      
+      console.log('[ListaIscrizioni] Fetching from:', url);
+      
+      const response = await fetch(url);
       const data = (await response.json()) as IscrizioniResponse | ErrorResponse;
-
+      
       if (!response.ok) {
         throw new Error((data as ErrorResponse).error || 'Errore nel caricamento iscrizioni');
       }
-
+      
+      console.log('[ListaIscrizioni] Fetched', (data as IscrizioniResponse).iscrizioni.length, 'iscrizioni');
       setIscrizioni((data as IscrizioniResponse).iscrizioni);
     } catch (err) {
+      console.error('[ListaIscrizioni] Error:', err);
       setError(err instanceof Error ? err.message : 'Errore nel caricamento');
     } finally {
       setLoading(false);
@@ -64,146 +76,211 @@ export default function ListaIscrizioni({ onSelectIscrizione, onNuovaIscrizione 
     });
   };
 
-  const getBadgeColor = (stato?: string) => {
-    if (!stato) return 'var(--muted)';
+  const getBadgeStyle = (stato?: string) => {
+    if (!stato) return 'bg-slate-100 text-slate-600 border-slate-200';
     
     switch (stato.toLowerCase()) {
       case 'completa':
-        return 'var(--_redesign---palette-brand--verde)';
+      case 'attiva':
+        return 'bg-green-50 text-green-700 border-green-200';
+      case 'da completare':
       case 'incompleta':
-        return 'var(--_redesign---palette-brand--arancio)';
       case 'in attesa':
-        return 'var(--_redesign---palette-brand--arancio)';
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'scaduta':
+        return 'bg-red-50 text-red-700 border-red-200';
       default:
-        return 'var(--primary)';
+        return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
 
-  const getBadgeTextColor = (stato?: string) => {
-    if (!stato) return 'var(--foreground)';
-    return 'white';
-  };
-
+  // LOADING STATE
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Caricamento...</p>;
+    return (
+      <div className="text-slate-500 text-sm">Caricamento iscrizioni...</div>
+    );
   }
 
+  // ERROR STATE
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm" style={{ padding: '0.75rem 1rem' }}>
+      <div className="bg-red-50 border border-red-200 rounded-2xl text-red-800 text-sm p-4">
         {error}
       </div>
     );
   }
 
+  // EMPTY STATE - Nessuna iscrizione
   if (iscrizioni.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', padding: '2rem 1rem', textAlign: 'center' }}>
-        <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', backgroundColor: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="flex flex-col items-center justify-center gap-4 py-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
             <line x1="12" y1="18" x2="12" y2="12"></line>
             <line x1="9" y1="15" x2="15" y2="15"></line>
           </svg>
         </div>
-        <div>
-          <p className="font-medium text-foreground" style={{ marginBottom: '0.5rem' }}>
-            Nessuna iscrizione trovata
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Clicca sul pulsante "Nuova" per creare un'iscrizione
-          </p>
+        <div className="flex flex-col gap-1">
+          <span className="text-slate-800 font-medium">Nessuna iscrizione attiva</span>
+          <span className="text-slate-500 text-sm">
+            {bambinoId 
+              ? 'Registra una nuova iscrizione per questo bambino.' 
+              : 'Aggiungi un bambino e poi crea la sua iscrizione.'}
+          </span>
+        </div>
+        <button 
+          onClick={onNuovaIscrizione}
+          className="mt-2 h-10 rounded-full px-6 bg-blue-900 text-white font-bold text-sm hover:bg-blue-800 transition-colors shadow-sm flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Crea Nuova Iscrizione
+        </button>
+      </div>
+    );
+  }
+
+  // ✅ CASO SINGOLA ISCRIZIONE (DettaglioBambino)
+  if (bambinoId && iscrizioni.length === 1) {
+    const iscrizione = iscrizioni[0];
+    
+    const nomeBambino = normalizeLookup(iscrizione.fields['NOME_BAMBINO (from TABELLA_BAMBINI)']) || 'N/D';
+    const cognomeBambino = normalizeLookup(iscrizione.fields['COGNOME_BAMBINO (from TABELLA_BAMBINI)']) || '';
+    const anno = normalizeLookup(iscrizione.fields['ANNO_ISCRIZIONE (from TABELLA_TARIFFE)']) || 'N/D';
+    const categoria = normalizeLookup(iscrizione.fields.CATEGORIA_FCI) || 'N/D';
+    const stato = iscrizione.fields.STATO_ISCRIZIONE || 'Da completare';
+    const dataIscrizione = iscrizione.fields.DATA_ISCRIZIONE;
+
+    return (
+      <div 
+        onClick={() => onSelectIscrizione(iscrizione.id)}
+        className="group relative bg-white rounded-2xl border border-slate-200/60 p-5 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all duration-200"
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          
+          {/* Info Principali */}
+          <div className="flex items-center gap-4">
+            {/* Icona Documento */}
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <path d="M16 13H8"></path>
+                <path d="M16 17H8"></path>
+                <path d="M10 9H8"></path>
+              </svg>
+            </div>
+            
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-slate-800">
+                Anno {anno}
+              </span>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span className="font-medium text-slate-600">Categoria {categoria}</span>
+                <span>•</span>
+                <span>{dataIscrizione ? `Iscr. il ${formatDate(dataIscrizione)}` : 'Data N/D'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Badge Stato + Freccia */}
+          <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+            <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${getBadgeStyle(stato)}`}>
+              {stato}
+            </span>
+            
+            {/* Freccia (indicatore di cliccabilità) */}
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="text-slate-300 group-hover:text-blue-500 transition-colors ml-auto sm:ml-0"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ✅ CASO MULTIPLE ISCRIZIONI (Dashboard - tutte le iscrizioni del genitore)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+    <div className="flex flex-col gap-3">
       {iscrizioni.map((iscrizione) => {
-        const nomeBambino = iscrizione.fields['NOME BAMBINO']?.[0] || 'N/D';
-        const cognomeBambino = iscrizione.fields['COGNOME BAMBINO']?.[0] || '';
-        const anno = iscrizione.fields.ANNO_ISCRIZIONE || 'N/D';
-        const stato = iscrizione.fields.STATO_ISCRIZIONE;
+        const nomeBambino = normalizeLookup(iscrizione.fields['NOME_BAMBINO (from TABELLA_BAMBINI)']) || 'N/D';
+        const cognomeBambino = normalizeLookup(iscrizione.fields['COGNOME_BAMBINO (from TABELLA_BAMBINI)']) || '';
+        const anno = normalizeLookup(iscrizione.fields['ANNO_ISCRIZIONE (from TABELLA_TARIFFE)']) || 'N/D';
+        const categoria = normalizeLookup(iscrizione.fields.CATEGORIA_FCI) || 'N/D';
+        const stato = iscrizione.fields.STATO_ISCRIZIONE || 'Da completare';
+        const dataIscrizione = iscrizione.fields.DATA_ISCRIZIONE;
 
         return (
-          <button
+          <div 
             key={iscrizione.id}
-            onClick={() => onSelectIscrizione?.(iscrizione.id)}
-            className="card-rounded border hover:border-primary transition-colors text-left"
-            style={{ 
-              padding: '1rem', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '0.75rem', 
-              cursor: 'pointer',
-              backgroundColor: 'var(--_redesign---neutral--neutral-100)',
-              borderColor: 'var(--border)',
-              boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)',
-              width: '100%'
-            }}
+            onClick={() => onSelectIscrizione(iscrizione.id)}
+            className="group relative bg-white rounded-2xl border border-slate-200/60 p-5 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all duration-200"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div style={{ 
-                width: '2.5rem', 
-                height: '2.5rem', 
-                borderRadius: '50%', 
-                backgroundColor: 'var(--primary)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                flexShrink: 0 
-              }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              
+              {/* Info Principali */}
+              <div className="flex items-center gap-4">
+                {/* Icona Documento */}
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <path d="M16 13H8"></path>
+                    <path d="M16 17H8"></path>
+                    <path d="M10 9H8"></path>
+                  </svg>
+                </div>
+                
+                <div className="flex flex-col">
+                  <span className="text-lg font-bold text-slate-800">
+                    {nomeBambino} {cognomeBambino}
+                  </span>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <span className="font-medium text-slate-600">Anno {anno}</span>
+                    <span>•</span>
+                    <span className="font-medium text-slate-600">Categoria {categoria}</span>
+                    <span>•</span>
+                    <span>{dataIscrizione ? `${formatDate(dataIscrizione)}` : 'Data N/D'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Badge Stato + Freccia */}
+              <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${getBadgeStyle(stato)}`}>
+                  {stato}
+                </span>
+                
+                {/* Freccia (indicatore di cliccabilità) */}
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="text-slate-300 group-hover:text-blue-500 transition-colors ml-auto sm:ml-0"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
               </div>
-              
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p className="font-semibold" style={{ marginBottom: '0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {nomeBambino} {cognomeBambino}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Anno {anno}
-                </p>
-              </div>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-              {/* Data iscrizione */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="text-xs text-muted-foreground" style={{ minWidth: '100px' }}>Data iscrizione:</span>
-                <span className="text-sm" style={{ flex: 1 }}>
-                  {formatDate(iscrizione.fields.DATA_ISCRIZIONE)}
-                </span>
-              </div>
-
-              {/* Stato */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="text-xs text-muted-foreground" style={{ minWidth: '100px' }}>Stato:</span>
-                <span
-                  style={{
-                    backgroundColor: getBadgeColor(stato),
-                    color: getBadgeTextColor(stato),
-                    padding: '0.125rem 0.5rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    flex: 1
-                  }}
-                >
-                  {stato || 'N/D'}
-                </span>
-              </div>
-            </div>
-          </button>
+          </div>
         );
       })}
     </div>

@@ -1,150 +1,189 @@
-// API route per caricare il regolamento firmato di un'iscrizione
 import type { APIRoute } from 'astro';
-import { getAirtableClient } from '../../../../lib/airtable';
 import { getGenitoreFromSession } from '../../../../lib/auth';
+import { getAirtableClient } from '../../../../lib/airtable';
 
 export const POST: APIRoute = async (context) => {
   try {
-    const { id } = context.params;
-    console.log('[API] POST /api/iscrizioni/[id]/regolamento - Start, id:', id);
+    console.log('[Regolamento API] Starting POST request');
     
-    if (!id) {
-      return new Response(JSON.stringify({ error: 'ID iscrizione mancante' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
+    // Verifica autenticazione
     const genitore = await getGenitoreFromSession(context);
+    console.log('[Regolamento API] Genitore found:', !!genitore);
+    
     if (!genitore) {
+      console.error('[Regolamento API] Not authenticated');
       return new Response(JSON.stringify({ error: 'Non autenticato' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
+    const iscrizioneId = context.params.id;
+    console.log('[Regolamento API] Iscrizione ID:', iscrizioneId);
+    
+    if (!iscrizioneId) {
+      return new Response(JSON.stringify({ error: 'ID iscrizione mancante' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Ottieni client Airtable
     const client = getAirtableClient(context.locals?.runtime);
     if (!client) {
-      return new Response(
-        JSON.stringify({ error: 'Configurazione database non disponibile' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      console.error('[Regolamento API] Airtable client not configured');
+      return new Response(JSON.stringify({ error: 'Configurazione mancante' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Verifica che l'iscrizione appartenga al genitore
-    const iscrizione = await client.getIscrizioneById(id, genitore.id!);
-    if (!iscrizione) {
-      return new Response(
-        JSON.stringify({ error: 'Iscrizione non trovata o non autorizzato' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Parse form data
-    const formData = await context.request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return new Response(
-        JSON.stringify({ error: 'File mancante' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('[API] File ricevuto:', file.name, file.type, file.size);
-
-    // Validazione tipo file (solo PDF)
-    if (!file.type.includes('pdf')) {
-      return new Response(
-        JSON.stringify({ error: 'Solo file PDF sono permessi' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validazione dimensione (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return new Response(
-        JSON.stringify({ error: 'Il file è troppo grande. Dimensione massima: 5MB' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Controlla se R2 è disponibile
-    const r2Bucket = context.locals?.runtime?.env?.R2_BUCKET;
+    const iscrizione = await client.getIscrizioneById(iscrizioneId, genitore.id!);
+    console.log('[Regolamento API] Iscrizione found:', !!iscrizione);
     
-    if (!r2Bucket) {
-      console.warn('[API] R2 bucket not configured');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Servizio storage non configurato',
-          details: 'Configura R2_BUCKET nelle variabili d\'ambiente'
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+    if (!iscrizione) {
+      console.error('[Regolamento API] Iscrizione not found or not owned by genitore');
+      return new Response(JSON.stringify({ error: 'Iscrizione non trovata' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    // Genera un nome file univoco
+    // Parse JSON body
+    let body;
+    try {
+      body = await context.request.json();
+      console.log('[Regolamento API] JSON body parsed successfully');
+    } catch (e) {
+      console.error('[Regolamento API] Error parsing JSON:', e);
+      return new Response(JSON.stringify({ error: 'Errore nel parsing dei dati' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { fileData, fileName, fileType, fileSize } = body;
+
+    console.log('[Regolamento API] File present:', !!fileData);
+    console.log('[Regolamento API] File name:', fileName);
+    console.log('[Regolamento API] File type:', fileType);
+    console.log('[Regolamento API] File size:', fileSize);
+
+    if (!fileData) {
+      return new Response(JSON.stringify({ error: 'Carica il file del regolamento' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Valida dimensione file (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (fileSize > maxSize) {
+      console.error('[Regolamento API] File too large:', fileSize);
+      return new Response(JSON.stringify({ error: 'File troppo grande (max 5MB)' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Valida tipo file
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(fileType)) {
+      console.error('[Regolamento API] Invalid file type:', fileType);
+      return new Response(JSON.stringify({ error: 'Formato file non supportato. Usa PDF, JPG o PNG.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('[Regolamento API] File validation passed');
+
+    // Ottieni R2 bucket
+    const r2 = context.locals?.runtime?.env?.R2;
+    
+    if (!r2) {
+      console.error('[Regolamento API] R2 bucket not configured');
+      return new Response(JSON.stringify({ 
+        error: 'Storage non configurato. Contatta l\'amministratore per configurare R2 bucket.',
+        details: 'R2 binding not found in runtime environment'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Converti data URL in buffer
+    const base64Data = fileData.split(',')[1];
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Genera nome file unico
     const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(7);
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `regolamenti/${id}_${timestamp}_${randomString}.${fileExtension}`;
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const r2Key = `regolamenti/${iscrizioneId}/${timestamp}-${sanitizedFileName}`;
 
-    console.log('[API] Uploading to R2:', fileName);
+    console.log('[Regolamento API] Uploading to R2:', r2Key);
 
-    // Upload su R2
-    const arrayBuffer = await file.arrayBuffer();
-    await r2Bucket.put(fileName, arrayBuffer, {
+    // Carica su R2
+    await r2.put(r2Key, bytes, {
       httpMetadata: {
-        contentType: file.type,
+        contentType: fileType,
       },
     });
 
-    console.log('[API] File uploaded to R2');
+    console.log('[Regolamento API] File uploaded to R2 successfully');
 
-    // Costruisci URL pubblico del file
-    // In produzione, dovrai configurare un custom domain per R2
-    // Per ora usiamo la struttura base
-    const publicUrl = `https://pub-yourdomain.r2.dev/${fileName}`;
-    
-    // NOTA: In alternativa, se hai configurato R2 con custom domain:
-    // const r2Domain = context.locals?.runtime?.env?.R2_PUBLIC_DOMAIN;
-    // const publicUrl = `https://${r2Domain}/${fileName}`;
+    // Genera URL pubblico per Airtable
+    const r2PublicDomain = context.locals?.runtime?.env?.R2_PUBLIC_DOMAIN || context.url.origin;
+    const publicUrl = `${r2PublicDomain}/api/certificati/${r2Key}`;
 
-    console.log('[API] Public URL:', publicUrl);
+    console.log('[Regolamento API] Public URL:', publicUrl);
 
-    // Aggiorna Airtable con l'URL del file
-    const updatedIscrizione = await client.updateRegolamentoFirmato(
-      id,
+    // Data di firma del regolamento (data corrente in formato YYYY-MM-DD)
+    const dataFirma = new Date().toISOString().split('T')[0];
+    console.log('[Regolamento API] Data firma:', dataFirma);
+
+    // Aggiorna Airtable con l'URL pubblico e la data di firma
+    const updated = await client.updateRegolamentoFirmato(
+      iscrizioneId,
       genitore.id!,
-      publicUrl
+      publicUrl,
+      dataFirma
     );
 
-    if (!updatedIscrizione) {
-      return new Response(
-        JSON.stringify({ error: 'Errore nell\'aggiornamento dell\'iscrizione' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+    if (!updated) {
+      console.error('[Regolamento API] Failed to update Airtable');
+      // Pulisci R2 in caso di errore
+      await r2.delete(r2Key);
+      return new Response(JSON.stringify({ error: 'Errore durante il salvataggio in database' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log('[API] Iscrizione updated with regolamento');
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        iscrizione: updatedIscrizione,
-        fileUrl: publicUrl 
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.log('[Regolamento API] Regolamento uploaded successfully');
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: 'Regolamento caricato con successo',
+      url: publicUrl,
+      dataFirma: dataFirma
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
-    console.error('[API] Error in POST /api/iscrizioni/[id]/regolamento:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: 'Errore nel caricamento del regolamento',
-        details: error instanceof Error ? error.message : 'Errore sconosciuto'
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('[Regolamento API] Unexpected error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Errore interno del server',
+      details: error instanceof Error ? error.message : String(error)
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 };
