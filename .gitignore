@@ -38,3 +38,6 @@ wrangler-output/
 
 # cloudflare
 .cloudflare/
+-e 
+# lost+found files
+lost+found/

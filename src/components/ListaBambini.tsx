@@ -24,7 +24,7 @@ interface IscrizioneInfo {
 
 interface BambiniResponse {
   bambini: Bambino[];
-  iscrizioniMap?: Record<string, IscrizioneInfo>; // Map bambinoId -> iscrizione info
+  iscrizioniMap?: Record<string, IscrizioneInfo>;
 }
 
 interface ErrorResponse {
@@ -60,371 +60,136 @@ export default function ListaBambini() {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  // Calcola colore badge categoria
-  const getCategoriaColor = () => {
-    return 'var(--primary)';
-  };
-
-  const getCategoriaTextColor = () => {
-    return 'var(--primary-foreground)';
-  };
-
-  // Calcola colore badge in base allo stato del certificato
-  const getBadgeColor = (stato?: string) => {
-    if (!stato) return 'var(--muted)';
-    
-    switch (stato.toLowerCase()) {
-      case 'valido':
-        return 'var(--_redesign---palette-brand--verde)';
-      case 'in scadenza':
-        return 'var(--_redesign---palette-brand--arancio)';
-      case 'scaduto':
-        return 'var(--_redesign---palette-brand--rosso)';
-      default:
-        return 'var(--muted)';
+  // Helper per lo stile dei badge (Certificato) - ALLINEATO con CertificatoMedico.tsx
+  const getCertColorStyle = (stato?: string) => {
+    switch (stato?.toLowerCase()) {
+      case 'valido': 
+        return 'bg-green-600 text-white border-green-600';
+      case 'in scadenza': 
+        return 'bg-orange-500 text-white border-orange-500';
+      case 'scaduto': 
+        return 'bg-red-600 text-white border-red-600';
+      default: 
+        return 'bg-slate-200 text-slate-800 border-slate-200';
     }
   };
 
-  // Calcola colore del testo in base allo stato del certificato
-  const getBadgeTextColor = (stato?: string) => {
-    if (!stato) return 'var(--foreground)'; // testo scuro per sfondo chiaro
-    
+  // Helper per lo stile dei badge (Iscrizione)
+  const getSubColorStyle = (stato?: string) => {
+    if (!stato) return 'bg-blue-50 text-blue-700 border-blue-200'; // Default "Nuova"
     switch (stato.toLowerCase()) {
-      case 'valido':
-      case 'in scadenza':
-      case 'scaduto':
-        return 'white';
-      default:
-        return 'var(--foreground)'; // testo scuro per sfondo chiaro
+      case 'completa': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'incompleta': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'in attesa': return 'bg-amber-50 text-amber-700 border-amber-200';
+      default: return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
 
-  // Colore badge iscrizione in base allo stato
-  const getIscrizioneBadgeColor = (stato?: string) => {
-    if (!stato) return 'var(--muted)';
-    
-    switch (stato.toLowerCase()) {
-      case 'completa':
-        return 'var(--_redesign---palette-brand--verde)';
-      case 'incompleta':
-        return 'var(--_redesign---palette-brand--arancio)';
-      case 'in attesa':
-        return 'var(--_redesign---palette-brand--arancio)';
-      default:
-        return 'var(--primary)';
-    }
-  };
+  if (loading) return <div className="text-slate-500 text-sm py-4">Caricamento profili...</div>;
+  
+  if (error) return <div className="text-red-600 text-sm py-4 bg-red-50 p-4 rounded-xl border border-red-100">{error}</div>;
 
-  const getIscrizioneBadgeTextColor = (stato?: string) => {
-    if (!stato) return 'var(--foreground)';
-    return 'white';
-  };
-
-  if (loading) {
+  if (bambini.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-              I tuoi bambini
-            </h4>
-          </div>
+      <div className="flex flex-col items-center justify-center py-8 text-center bg-white rounded-2xl border border-slate-200 border-dashed">
+        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+             <circle cx="12" cy="7" r="4"></circle>
+          </svg>
         </div>
-        <p className="text-sm text-muted-foreground">Caricamento...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-              I tuoi bambini
-            </h4>
-          </div>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm" style={{ padding: '0.75rem 1rem' }}>
-          {error}
-        </div>
+        <p className="text-slate-600 font-medium text-sm">Nessun bambino registrato</p>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {/* Desktop: Header con pulsante in linea */}
-      <div className="hidden sm:flex" style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-          </div>
-          <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-            I tuoi bambini
-          </h4>
-        </div>
-        <a
-          href={`${baseUrl}/bambini/aggiungi`}
-          className="pulsante1 btn-standard inline-flex items-center justify-center gap-2 shrink-0"
-          style={{ 
-            textDecoration: 'none',
-            paddingLeft: '1.5rem',
-            paddingRight: '1.5rem',
-            minWidth: '120px'
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14"/>
-            <path d="M12 5v14"/>
-          </svg>
-          Aggiungi
-        </a>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {bambini.map((bambino) => {
+        const fotoUrl = bambino.fields.FOTO_BAMBINO?.[0]?.url;
+        const iscrizioneInfo = iscrizioniMap[bambino.id];
+        const certStato = bambino.fields.CERTIFICATO_MEDICO_STATO;
+        const statoIscrizione = iscrizioneInfo?.statoIscrizione;
 
-      {/* Mobile: Header senza pulsante */}
-      <div className="flex sm:hidden" style={{ alignItems: 'center', gap: '0.75rem' }}>
-        <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-        </div>
-        <h4 className="font-semibold text-muted-foreground uppercase tracking-wider" style={{ fontSize: '1.6rem', margin: 0 }}>
-          I tuoi bambini
-        </h4>
-      </div>
-
-      {bambini.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', padding: '2rem 1rem', textAlign: 'center' }}>
-          <div style={{ width: '4rem', height: '4rem', borderRadius: '50%', backgroundColor: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-          </div>
-          <div>
-            <p className="font-medium text-foreground" style={{ marginBottom: '0.5rem' }}>
-              Nessun bambino registrato
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Clicca sul pulsante "Aggiungi" per iniziare
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
-          {bambini.map((bambino) => {
-            const fotoUrl = bambino.fields.FOTO_BAMBINO?.[0]?.url;
-            const iscrizioneInfo = iscrizioniMap[bambino.id];
-            
-            return (
-              <button
-                key={bambino.id}
-                onClick={() => window.location.href = `${baseUrl}/bambini/${bambino.id}`}
-                className="card-rounded border hover:border-primary transition-colors text-left"
-                style={{ 
-                  padding: '1rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '0.75rem', 
-                  cursor: 'pointer',
-                  backgroundColor: 'var(--_redesign---neutral--neutral-100)',
-                  borderColor: 'var(--border)',
-                  boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  {/* Foto o icona */}
-                  <div style={{ 
-                    width: '2.5rem', 
-                    height: '2.5rem', 
-                    borderRadius: '50%', 
-                    backgroundColor: 'var(--primary)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    flexShrink: 0,
-                    overflow: 'hidden'
-                  }}>
-                    {fotoUrl ? (
-                      <img
-                        src={fotoUrl}
-                        alt={`${bambino.fields.NOME_BAMBINO} ${bambino.fields.COGNOME_BAMBINO}`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="8" r="5"></circle>
-                        <path d="M20 21a8 8 0 1 0-16 0"></path>
-                      </svg>
-                    )}
-                  </div>
-                  
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="font-semibold" style={{ marginBottom: '0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Nato il {formatDate(bambino.fields.DATA_NASCITA_BAMBINO)}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Categoria */}
-                {bambino.fields.CATEGORIA && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    <span className="text-xs text-muted-foreground" style={{ minWidth: '75px' }}>Categoria:</span>
-                    <span
-                      style={{
-                        backgroundColor: getCategoriaColor(),
-                        color: getCategoriaTextColor(),
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)'
-                      }}
-                    >
-                      {bambino.fields.CATEGORIA}
-                    </span>
-                  </div>
+        return (
+          <a
+            key={bambino.id}
+            href={`${baseUrl}/bambini/${bambino.id}`}
+            className="group rounded-2xl border border-slate-200 p-5 hover:border-blue-400 hover:shadow-md transition-all duration-200 flex flex-col gap-4 text-left no-underline relative overflow-hidden"
+            style={{ 
+              backgroundColor: '#ffffff',
+              boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)' 
+            }}
+          >
+            {/* 1. Header Card: Avatar e Info Principali */}
+            <div className="flex items-start gap-4">
+              {/* Avatar */}
+              <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                {fotoUrl ? (
+                  <img src={fotoUrl} alt="Foto" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg font-bold text-blue-900 bg-blue-100 w-full h-full flex items-center justify-center">
+                    {bambino.fields.NOME_BAMBINO.charAt(0)}{bambino.fields.COGNOME_BAMBINO.charAt(0)}
+                  </span>
                 )}
-                
-                {/* Certificato e Iscrizione in riga */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                  {/* Certificato */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="text-xs text-muted-foreground" style={{ minWidth: '75px' }}>Certificato:</span>
-                    <span
-                      style={{
-                        backgroundColor: getBadgeColor(bambino.fields.CERTIFICATO_MEDICO_STATO),
-                        color: getBadgeTextColor(bambino.fields.CERTIFICATO_MEDICO_STATO),
-                        padding: '0.125rem 0.5rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        flex: 1
-                      }}
-                    >
-                      {bambino.fields.CERTIFICATO_MEDICO_STATO || 'Non disponibile'}
-                    </span>
-                  </div>
-                  
-                  {/* Iscrizione: stato badge o CTA */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="text-xs text-muted-foreground" style={{ minWidth: '75px' }}>Iscrizione:</span>
-                    {iscrizioneInfo?.hasIscrizioneCompleta ? (
-                      <span
-                        style={{
-                          backgroundColor: getIscrizioneBadgeColor(iscrizioneInfo.statoIscrizione),
-                          color: getIscrizioneBadgeTextColor(iscrizioneInfo.statoIscrizione),
-                          padding: '0.125rem 0.5rem',
-                          borderRadius: '9999px',
-                          fontSize: '0.75rem',
-                          fontWeight: '600',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          flex: 1
-                        }}
-                      >
-                        {iscrizioneInfo.statoIscrizione || 'Iscritto'}
-                      </span>
-                    ) : (
-                      <a
-                        href={`${baseUrl}/iscrizioni/nuova?bambino=${bambino.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="pulsante1 btn-standard inline-flex items-center justify-center gap-1"
-                        style={{
-                          textDecoration: 'none',
-                          fontSize: '0.75rem',
-                          height: '1.75rem',
-                          paddingLeft: '0.75rem',
-                          paddingRight: '0.75rem',
-                          flex: 1
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12h14"/>
-                          <path d="M12 5v14"/>
-                        </svg>
-                        Crea iscrizione
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+              </div>
 
-      {/* Mobile: Pulsante Aggiungi in basso */}
-      {bambini.length > 0 && (
-        <>
-          <div className="flex sm:hidden" style={{ height: '1px', backgroundColor: 'var(--border)' }}></div>
-          <div className="flex sm:hidden" style={{ justifyContent: 'center' }}>
-            <a
-              href={`${baseUrl}/bambini/aggiungi`}
-              className="pulsante1 btn-standard inline-flex items-center justify-center"
-              style={{ 
-                textDecoration: 'none',
-                width: '2.5rem',
-                height: '2.5rem',
-                padding: 0,
-                minWidth: 'unset'
-              }}
-              title="Aggiungi bambino"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14"/>
-                <path d="M12 5v14"/>
-              </svg>
-            </a>
-          </div>
-        </>
-      )}
+              {/* Testi */}
+              <div className="flex-1 min-w-0 pt-0.5">
+                <h5 className="font-bold text-slate-900 text-lg leading-tight truncate group-hover:text-blue-700 transition-colors">
+                  {bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}
+                </h5>
+                <p className="text-sm text-slate-500 mt-1">
+                  Nato il {formatDate(bambino.fields.DATA_NASCITA_BAMBINO)}
+                </p>
+                {bambino.fields.CATEGORIA && (
+                   <span className="inline-block mt-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wide">
+                     {bambino.fields.CATEGORIA}
+                   </span>
+                )}
+              </div>
+
+              {/* Freccetta navigazione */}
+              <div className="text-slate-300 group-hover:text-blue-600 transition-colors">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </div>
+            </div>
+
+            {/* Divisore leggero */}
+            <div className="h-px bg-slate-100 w-full" />
+
+            {/* 2. Footer Card: Badge di Stato */}
+            <div className="flex flex-wrap gap-2">
+              
+              {/* Badge Certificato - ALLINEATO con CertificatoMedico.tsx */}
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wide ${getCertColorStyle(certStato)}`}>
+                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                   <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                   {certStato?.toLowerCase() === 'valido' && <polyline points="9 11 12 14 22 4" />}
+                 </svg>
+                 <span>Cert: {certStato || 'Mancante'}</span>
+              </div>
+
+              {/* Badge Iscrizione */}
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold uppercase tracking-wide ${getSubColorStyle(statoIscrizione)}`}>
+                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                 </svg>
+                 <span>Iscr: {statoIscrizione || 'Nuova'}</span>
+              </div>
+
+            </div>
+          </a>
+        );
+      })}
     </div>
   );
 }

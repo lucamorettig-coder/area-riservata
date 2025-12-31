@@ -37,7 +37,7 @@ export default function NuovaIscrizioneForm({ preSelectedBambinoId }: NuovaIscri
       const bambiniData = await bambiniRes.json();
       setBambini(bambiniData.bambini || []);
 
-      // Fetch tariffa attiva
+      // Fetch tariffa attiva per anno corrente
       const anno = new Date().getFullYear().toString();
       const tariffaRes = await fetch(`${baseUrl}/api/tariffe/attiva?anno=${anno}`, {
         credentials: 'include',
@@ -65,22 +65,18 @@ export default function NuovaIscrizioneForm({ preSelectedBambinoId }: NuovaIscri
       return;
     }
 
-    if (!tariffa?.id) {
-      setError('Tariffa non disponibile');
-      return;
-    }
-
     try {
       setSubmitting(true);
       setError(null);
 
+      // REGOLA BUSINESS: L'anno e la tariffa sono automatici, non selezionabili
       const response = await fetch(`${baseUrl}/api/iscrizioni`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           bambinoId: selectedBambinoId,
-          tariffaId: tariffa.id,
+          // tariffaId non è più necessario, viene gestito automaticamente
         }),
       });
 
@@ -163,18 +159,14 @@ export default function NuovaIscrizioneForm({ preSelectedBambinoId }: NuovaIscri
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <a 
-          href={`${baseUrl}/dashboard`} 
-          className="pulsante1 is-secondary btn-standard"
-          style={{ textDecoration: 'none', display: 'inline-block' }}
-        >
-          ← Indietro
-        </a>
+      {/* Header - SENZA back button perché c'è Annulla in basso */}
+      <div>
         <h2 className="text-2xl font-heading font-bold">
           Nuova Iscrizione
         </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Crea una nuova iscrizione per l'anno corrente
+        </p>
       </div>
 
       {/* Errore globale */}
@@ -212,14 +204,13 @@ export default function NuovaIscrizioneForm({ preSelectedBambinoId }: NuovaIscri
             {bambini.map((bambino) => (
               <option key={bambino.id} value={bambino.id}>
                 {bambino.fields.NOME_BAMBINO} {bambino.fields.COGNOME_BAMBINO}
-                {bambino.fields.CATEGORIA ? ` (${bambino.fields.CATEGORIA})` : ''}
               </option>
             ))}
           </select>
         </label>
       </div>
 
-      {/* Tariffa */}
+      {/* Tariffa - Visualizzazione informativa (non selezionabile) */}
       {tariffaFields && (
         <div className="card-rounded border bg-card shadow-sm" style={{ padding: '1.5rem 2rem', boxShadow: '0 2px 5px 0 rgba(0,0,0,0.2)' }}>
           <div className="flex items-center gap-3 mb-4">
@@ -292,9 +283,11 @@ export default function NuovaIscrizioneForm({ preSelectedBambinoId }: NuovaIscri
             Informazioni importanti
           </p>
         </div>
-        <p className="text-xs text-muted-foreground" style={{ paddingLeft: '2.75rem', margin: 0 }}>
-          Dopo aver creato l'iscrizione, potrai completare tutti i dati richiesti: privacy GDPR, taglie kit scuola e caricamento regolamento firmato.
-        </p>
+        <ul className="text-xs text-muted-foreground space-y-1" style={{ paddingLeft: '2.75rem', margin: 0 }}>
+          <li>• L'iscrizione viene creata automaticamente per l'anno {new Date().getFullYear()}</li>
+          <li>• Ogni bambino può avere una sola iscrizione attiva</li>
+          <li>• Dopo la creazione potrai completare privacy, taglie e regolamento</li>
+        </ul>
       </div>
 
       {/* Pulsanti */}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import imageCompression from 'browser-image-compression';
 import { baseUrl } from '../lib/base-url';
+import UploadButton from './UploadButton';
 
 interface FotoBambinoProps {
   bambinoId: string;
@@ -11,14 +12,10 @@ interface FotoBambinoProps {
 export default function FotoBambino({ bambinoId, fotoUrl, nomeBambino }: FotoBambinoProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState('');
-  const [showUploadForm, setShowUploadForm] = useState(false);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState(fotoUrl);
   const [uploadProgress, setUploadProgress] = useState('');
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleFileSelect = async (file: File) => {
     setMessage('');
     setUploadProgress('');
 
@@ -99,7 +96,6 @@ export default function FotoBambino({ bambinoId, fotoUrl, nomeBambino }: FotoBam
             if (result.bambino?.fields?.FOTO_BAMBINO?.[0]?.url) {
               setCurrentPhotoUrl(result.bambino.fields.FOTO_BAMBINO[0].url);
             }
-            setShowUploadForm(false);
             setUploadProgress('');
             // Ricarica la pagina dopo 2 secondi
             setTimeout(() => {
@@ -141,7 +137,7 @@ export default function FotoBambino({ bambinoId, fotoUrl, nomeBambino }: FotoBam
       <div 
         className="card-rounded" 
         style={{ 
-          padding: '1rem 1.5rem',
+          padding: '1.5rem',
           backgroundColor: 'var(--_redesign---neutral--neutral-100)',
           display: 'flex',
           flexDirection: 'column',
@@ -192,122 +188,45 @@ export default function FotoBambino({ bambinoId, fotoUrl, nomeBambino }: FotoBam
           )}
         </div>
 
-        {/* Pulsanti azione - Desktop */}
-        <div className="hidden sm:flex" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setShowUploadForm(!showUploadForm)}
-            className="pulsante1 btn-standard inline-flex items-center justify-center gap-2"
-            disabled={isUploading}
-            style={{ 
-              padding: '0 1.5rem',
-              flexShrink: 0
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            {currentPhotoUrl ? 'Cambia foto' : 'Carica foto'}
-          </button>
-        </div>
-
-        {/* Pulsanti azione - Mobile (solo icona) */}
-        <div className="flex sm:hidden" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setShowUploadForm(!showUploadForm)}
-            className="pulsante1 btn-standard inline-flex items-center justify-center"
-            disabled={isUploading}
-            style={{ 
-              width: '2.5rem',
-              height: '2.5rem',
-              padding: 0,
-              minWidth: 'unset',
-              flexShrink: 0
-            }}
-            title={currentPhotoUrl ? 'Cambia foto' : 'Carica foto'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-          </button>
-        </div>
+        {/* Pulsante Upload - Ora con stili forzati */}
+        <UploadButton
+          label={currentPhotoUrl ? 'Cambia foto' : 'Carica foto'}
+          onFileSelect={handleFileSelect}
+          isLoading={isUploading}
+          accept="image/*"
+        />
       </div>
 
-      {/* Form Upload (mostra solo quando richiesto) */}
-      {showUploadForm && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label htmlFor="photo-upload" className="text-sm font-medium">
-              Seleziona immagine
-            </label>
-            <input
-              id="photo-upload"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              disabled={isUploading}
-              style={{
-                padding: '0.5rem',
-                border: '1px solid var(--input)',
-                borderRadius: 'var(--radius)',
-                backgroundColor: 'var(--background)',
-              }}
-            />
-            <p className="text-xs text-muted-foreground" style={{ margin: 0 }}>
-              Le immagini verranno automaticamente compresse se troppo grandi
-            </p>
-          </div>
+      {/* Messaggi di stato */}
+      {uploadProgress && (
+        <div style={{ textAlign: 'center', padding: '1rem' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              border: '4px solid var(--muted)',
+              borderTop: '4px solid var(--primary)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto',
+            }}
+          />
+          <p className="text-sm text-muted-foreground" style={{ marginTop: '0.5rem', margin: 0 }}>
+            {uploadProgress}
+          </p>
+        </div>
+      )}
 
-          {uploadProgress && (
-            <div style={{ textAlign: 'center', padding: '1rem' }}>
-              <div
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  border: '4px solid var(--muted)',
-                  borderTop: '4px solid var(--primary)',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                  margin: '0 auto',
-                }}
-              />
-              <p className="text-sm text-muted-foreground" style={{ marginTop: '0.5rem', margin: 0 }}>
-                {uploadProgress}
-              </p>
-            </div>
-          )}
-
-          {message && (
-            <div
-              className="card-rounded"
-              style={{
-                padding: '0.75rem 1rem',
-                backgroundColor: message.includes('✅') ? 'var(--_redesign---palette-brand--verde)' : 'var(--muted)',
-                color: message.includes('✅') ? 'white' : 'var(--foreground)',
-              }}
-            >
-              <p className="text-sm" style={{ margin: 0 }}>{message}</p>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowUploadForm(false);
-                setMessage('');
-                setUploadProgress('');
-              }}
-              className="pulsante1 is-secondary btn-standard"
-              disabled={isUploading}
-              style={{ flex: 1 }}
-            >
-              Annulla
-            </button>
-          </div>
+      {message && (
+        <div
+          style={{
+            padding: '0.75rem 1rem',
+            backgroundColor: message.includes('✅') ? 'var(--_redesign---palette-brand--verde)' : 'var(--muted)',
+            color: message.includes('✅') ? 'white' : 'var(--foreground)',
+            borderRadius: 'var(--radius)',
+          }}
+        >
+          <p className="text-sm" style={{ margin: 0 }}>{message}</p>
         </div>
       )}
 

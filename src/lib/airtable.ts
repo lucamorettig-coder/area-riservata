@@ -1,7 +1,18 @@
 // Airtable client configuration
-// Variabili d'ambiente da configurare:
+// Variabili d'ambiente richieste:
 // - AIRTABLE_BASE_ID
-// - AIRTABLE_API_KEY (o AIRTABLE_TOKEN)
+// - AIRTABLE_TOKEN (o AIRTABLE_API_KEY come fallback)
+
+/**
+ * REGOLE DI BUSINESS:
+ * 1. Ogni BAMBINO può avere UNA SOLA ISCRIZIONE
+ * 2. L'iscrizione vale SOLO per l'anno solare corrente
+ * 3. L'anno NON è selezionabile dall'utente
+ * 4. Campi formula/lookup sono SEMPRE read-only
+ * 
+ * IMPORTANTE: I campi lookup in Airtable possono avere o NON avere "(from TABELLA_X)" nel nome!
+ * Usare SEMPRE i nomi esatti verificati nell'interfaccia di Airtable!
+ */
 
 export interface Genitore {
   id?: string;
@@ -16,7 +27,7 @@ export interface Genitore {
     EMAIL_GENITORE: string;
     CELLULARE_GENITORE: string;
     FLAG_PRIVACY: boolean;
-    AUTH_USER_ID?: string; // ID dell'utente Supabase Auth
+    AUTH_USER_ID?: string;
   };
 }
 
@@ -31,6 +42,7 @@ export interface AirtableAttachment {
 export interface Bambino {
   id?: string;
   fields: {
+    // Campi scrivibili
     NOME_BAMBINO: string;
     COGNOME_BAMBINO: string;
     DATA_NASCITA_BAMBINO: string;
@@ -38,55 +50,89 @@ export interface Bambino {
     CODICE_FISCALE_BAMBINO: string;
     VIA_RESIDENZA_BAMBINO: string;
     CITTA_RESIDENZA_BAMBINO: string;
-    TABELLA_GENITORI?: string[]; // Array di record IDs (linked record field)
-    FOTO_BAMBINO?: AirtableAttachment[]; // Attachment field
-    CERTIFICATO_MEDICO_FILE?: AirtableAttachment[]; // Attachment field
-    CERTIFICATO_MEDICO_SCADENZA?: string; // Date field (YYYY-MM-DD)
-    CERTIFICATO_MEDICO_STATO?: string; // Formula/Lookup field (READ ONLY)
-    ID_BAMBINO?: string; // Formula field (READ ONLY)
+    TABELLA_GENITORI?: string[];
+    FOTO_BAMBINO?: AirtableAttachment[];
+    CERTIFICATO_MEDICO_FILE?: AirtableAttachment[];
+    CERTIFICATO_MEDICO_SCADENZA?: string;
+    // Campi read-only (formula/lookup)
+    ID_BAMBINO?: string;
+    CERTIFICATO_MEDICO_STATO?: string;
+    GENITORE_RECORD_ID_LOOKUP?: string[];
   };
 }
 
 export interface Tariffa {
   id?: string;
   fields: {
-    ANNO_ISCRIZIONE: string; // es. "2025"
-    QUOTA_TOTALE_ANNO: number; // valuta
-    IMPORTO_ISCRIZIONE: number; // valuta - importo da pagare al momento dell'iscrizione
-    NUMERO_RATE: number; // numero di rate
-    IMPORTO_RATA: number; // valuta - importo singola rata
-    SCADENZA_RATE?: string; // descrizione scadenze
-    IMPORTO_KIT_SCUOLA?: number; // valuta
-    DESCRIZIONE_KIT?: string; // testo
-    ATTIVA: boolean; // checkbox - indica se la tariffa è attiva
+    ANNO_ISCRIZIONE: string;
+    QUOTA_TOTALE_ANNO: number;
+    IMPORTO_ISCRIZIONE: number;
+    NUMERO_RATE: number;
+    IMPORTO_RATA: number;
+    SCADENZA_RATE?: string;
+    IMPORTO_KIT_SCUOLA?: number;
+    DESCRIZIONE_KIT?: string;
+    ATTIVA: boolean;
   };
 }
 
 export interface Iscrizione {
   id?: string;
   fields: {
-    TABELLA_GENITORI: string[]; // linked record - OBBLIGATORIO
-    TABELLA_BAMBINI: string[]; // linked record - OBBLIGATORIO
-    TABELLA_TARIFFE: string[]; // linked record - OBBLIGATORIO
-    // Campi modificabili
-    PRIVACY_GDPR_FCI?: boolean; // checkbox privacy
-    TAGLIA_MAGLIA?: string; // taglia maglia
-    TAGLIA_PANTALONCINO?: string; // taglia pantaloncino
-    TAGLIA_TUTA?: string; // taglia tuta
-    REGOLAMENTO_FIRMATO_FILE?: AirtableAttachment[]; // Attachment field
-    // Campi read-only (gestiti da Airtable)
-    DATA_ISCRIZIONE?: string; // auto-popolato da Airtable
-    STATO_ISCRIZIONE?: string; // formula/lookup (READ ONLY)
-    ANNO_ISCRIZIONE?: string; // lookup da tariffa (READ ONLY)
-    // Lookup fields dai bambini (arrivano come array)
-    'NOME BAMBINO'?: string[]; // lookup (READ ONLY)
-    'COGNOME BAMBINO'?: string[]; // lookup (READ ONLY)
-    CATEGORIA?: string[]; // lookup (READ ONLY)
+    // Campi scrivibili
+    TABELLA_GENITORI: string[];
+    TABELLA_BAMBINI: string[];
+    TABELLA_TARIFFE: string[];
+    DATA_ISCRIZIONE?: string;
+    PRIVACY_MINORE?: boolean;
+    TAGLIA_MAGLIA?: string;
+    TAGLIA_PANTALONCINO?: string;
+    TAGLIA_TUTA?: string;
+    PRIVACY_DATI_PERSONALI?: boolean;
+    DATA_FIRMA_REGOLAMENTO?: string;
+    REGOLAMENTO_FIRMATO?: AirtableAttachment[];
+    STATO_ISCRIZIONE?: string;
+    // Campi read-only (formula/lookup) - NOMI ESATTI verificati su Airtable
+    ID_ISCRIZIONE?: string | string[];
+    PROGRESSIVO_ISCRIZIONE?: number | number[];
+    CHIAVE_UNIVOCA_ISCRIZIONE?: string | string[];
+    CATEGORIA_FCI?: string | string[]; // SENZA "(from TABELLA_BAMBINI)"!
+    'NOME_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'COGNOME_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'DATA_NASCITA_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'CODICE_FISCALE_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'VIA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'CITTA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'LUOGO_NASCITA_BAMBINO (from TABELLA_BAMBINI)'?: string | string[];
+    'NOME_GENITORE (from TABELLA_GENITORI)'?: string | string[];
+    'COGNOME_GENITORE (from TABELLA_GENITORI)'?: string | string[];
+    'EMAIL_GENITORE (from TABELLA_GENITORI)'?: string | string[];
+    'ANNO_ISCRIZIONE (from TABELLA_TARIFFE)'?: string | string[];
+    'QUOTA_TOTALE_ANNO (from TABELLA_TARIFFE)'?: number | number[];
+    'NUMERO_RATE (from TABELLA_TARIFFE)'?: number | number[];
+    'IMPORTO_RATA (from TABELLA_TARIFFE)'?: number | number[];
+    'SCADENZA_RATE (from TABELLA_TARIFFE)'?: string | string[];
+    'IMPORTO_KIT_SCUOLA (from TABELLA_TARIFFE)'?: number | number[];
+    'IMPORTO_ISCRIZIONE (from TABELLA_TARIFFE)'?: number | number[];
+    'CERTIFICATO_MEDICO_STATO (from TABELLA_BAMBINI)'?: string | string[];
+    GENITORE_RECORD_ID_LOOKUP?: string[] | string[][];
   };
 }
 
 interface AirtableResponse<T> {
   records?: T[];
+  offset?: string;
+}
+
+/**
+ * Helper per normalizzare i lookup che possono arrivare come array
+ */
+export function normalizeLookup<T>(value: T | T[] | undefined): T | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value[0] : undefined;
+  }
+  return value;
 }
 
 export class AirtableClient {
@@ -102,7 +148,8 @@ export class AirtableClient {
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${this.baseUrl}/${this.baseId}/${endpoint}`;
     
-    console.log(`[Airtable] Making request to: ${endpoint}`);
+    // Log safe: method + endpoint (no token, no full URL)
+    console.log(`[Airtable] ${options.method || 'GET'} ${endpoint.split('?')[0]}`);
     
     const response = await fetch(url, {
       ...options,
@@ -115,18 +162,43 @@ export class AirtableClient {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error(`[Airtable] Error response:`, error);
+      console.error(`[Airtable] Error ${response.status}:`, error);
       throw new Error(`Airtable API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json();
-    console.log(`[Airtable] Success response for ${endpoint}`);
     return data;
+  }
+
+  /**
+   * Helper generico per listare tutti i record con paginazione automatica
+   */
+  private async listAllRecords<T>(
+    tableName: string,
+    params: Record<string, string | undefined> = {}
+  ): Promise<T[]> {
+    const records: T[] = [];
+    let offset: string | undefined = undefined;
+
+    do {
+      const search = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') search.set(k, v);
+      });
+      if (offset) search.set('offset', offset);
+
+      const endpoint = `${tableName}?${search.toString()}`;
+      const data = await this.request(endpoint) as { records?: T[]; offset?: string };
+
+      if (data.records?.length) records.push(...data.records);
+      offset = data.offset;
+    } while (offset);
+
+    return records;
   }
 
   // ==================== GENITORI ====================
 
-  // Crea un nuovo genitore
   async createGenitore(fields: Genitore['fields']): Promise<Genitore> {
     const data = await this.request('TABELLA_GENITORI', {
       method: 'POST',
@@ -135,54 +207,39 @@ export class AirtableClient {
     return data;
   }
 
-  // Trova genitore per email
   async findGenitoreByEmail(email: string): Promise<Genitore | null> {
     const formula = `{EMAIL_GENITORE}="${email}"`;
     const data = await this.request(
-      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}`
+      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`
     ) as AirtableResponse<Genitore>;
     
-    if (data.records && data.records.length > 0) {
-      return data.records[0];
-    }
-    return null;
+    return data.records?.[0] || null;
   }
 
-  // Trova genitore per codice fiscale
   async findGenitoreByCF(codiceFiscale: string): Promise<Genitore | null> {
-    // Normalizza il codice fiscale in maiuscolo per il confronto
     const cfUpper = codiceFiscale.toUpperCase();
     const formula = `UPPER({CODICE_FISCALE_GENITORE})="${cfUpper}"`;
     const data = await this.request(
-      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}`
+      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`
     ) as AirtableResponse<Genitore>;
     
-    if (data.records && data.records.length > 0) {
-      return data.records[0];
-    }
-    return null;
+    return data.records?.[0] || null;
   }
 
-  // Trova genitore per AUTH_USER_ID (Supabase)
   async findGenitoreByAuthUserId(authUserId: string): Promise<Genitore | null> {
     const formula = `{AUTH_USER_ID}="${authUserId}"`;
     const data = await this.request(
-      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}`
+      `TABELLA_GENITORI?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`
     ) as AirtableResponse<Genitore>;
     
-    if (data.records && data.records.length > 0) {
-      return data.records[0];
-    }
-    return null;
+    return data.records?.[0] || null;
   }
 
-  // Ottieni genitore per ID
   async getGenitoreById(recordId: string): Promise<Genitore> {
     const data = await this.request(`TABELLA_GENITORI/${recordId}`) as Genitore;
     return data;
   }
 
-  // Aggiorna genitore
   async updateGenitore(recordId: string, fields: Partial<Genitore['fields']>): Promise<Genitore> {
     const data = await this.request(`TABELLA_GENITORI/${recordId}`, {
       method: 'PATCH',
@@ -193,136 +250,94 @@ export class AirtableClient {
 
   // ==================== BAMBINI ====================
 
-  // Crea un nuovo bambino
   async createBambino(fields: Bambino['fields']): Promise<Bambino> {
-    console.log('[Airtable] Creating bambino with fields:', fields);
+    // Rimuovi campi read-only prima di creare
+    const { ID_BAMBINO, CERTIFICATO_MEDICO_STATO, GENITORE_RECORD_ID_LOOKUP, ...safeFields } = fields;
+    
+    console.log('[Airtable] Creating bambino');
     const data = await this.request('TABELLA_BAMBINI', {
       method: 'POST',
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({ fields: safeFields }),
     }) as Bambino;
     return data;
   }
 
-  // Ottieni tutti i bambini di un genitore
+  /**
+   * Ottieni bambini di un genitore usando GENITORE_RECORD_ID_LOOKUP
+   * FIX: ARRAYJOIN sui Linked Record restituisce il primary field, non il recordId
+   * Usiamo invece GENITORE_RECORD_ID_LOOKUP che contiene i recordId veri
+   */
   async getBambiniByGenitore(genitoreId: string): Promise<Bambino[]> {
-    try {
-      console.log(`[Airtable] Fetching bambini for genitore: ${genitoreId}`);
-      
-      // Prova prima senza filtro per vedere se la tabella esiste
-      const allData = await this.request('TABELLA_BAMBINI') as AirtableResponse<Bambino>;
-      
-      console.log('[Airtable] Total records in TABELLA_BAMBINI:', allData.records?.length || 0);
-      
-      if (!allData.records || allData.records.length === 0) {
-        console.log('[Airtable] No bambini found in table');
-        return [];
-      }
+    console.log(`[Airtable] Fetching bambini for genitore: ${genitoreId}`);
 
-      // Filtra manualmente i bambini del genitore
-      const bambini = allData.records.filter(bambino => {
-        const hasGenitore = bambino.fields.TABELLA_GENITORI && bambino.fields.TABELLA_GENITORI.includes(genitoreId);
-        console.log(`[Airtable] Bambino ${bambino.id}: TABELLA_GENITORI field =`, bambino.fields.TABELLA_GENITORI, 'matches:', hasGenitore);
-        return hasGenitore;
-      });
-      
-      console.log(`[Airtable] Found ${bambini.length} bambini for this genitore`);
-      return bambini;
-    } catch (error) {
-      console.error('[Airtable] Error fetching bambini:', error);
-      
-      // Se la tabella non esiste ancora, restituisci array vuoto invece di errore
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('[Airtable] TABELLA_BAMBINI does not exist yet, returning empty array');
-        return [];
-      }
-      
-      throw error;
-    }
+    // Usa GENITORE_RECORD_ID_LOOKUP invece di TABELLA_GENITORI
+    const formula = `FIND("${genitoreId}", ARRAYJOIN({GENITORE_RECORD_ID_LOOKUP}, ","))`;
+    console.log(`[Airtable] Using formula (bambini): ${formula}`);
+
+    const records = await this.listAllRecords<Bambino>('TABELLA_BAMBINI', {
+      filterByFormula: formula,
+    });
+
+    console.log(`[Airtable] Found ${records.length} bambini`);
+    return records;
   }
 
-  // Ottieni bambino per ID (con verifica genitore)
   async getBambinoById(bambinoId: string, genitoreId: string): Promise<Bambino | null> {
     try {
-      console.log(`[Airtable] Fetching bambino ${bambinoId} for genitore ${genitoreId}`);
       const bambino = await this.request(`TABELLA_BAMBINI/${bambinoId}`) as Bambino;
       
-      console.log('[Airtable] Fetched bambino:', bambino.id, 'TABELLA_GENITORI:', bambino.fields.TABELLA_GENITORI);
-      
-      // Verifica che il bambino appartenga al genitore
-      if (bambino.fields.TABELLA_GENITORI && bambino.fields.TABELLA_GENITORI.includes(genitoreId)) {
-        console.log('[Airtable] Bambino belongs to genitore - OK');
+      // Verifica appartenenza usando TABELLA_GENITORI (linked record)
+      if (bambino.fields.TABELLA_GENITORI?.includes(genitoreId)) {
+        console.log('[Airtable] Bambino belongs to genitore');
         return bambino;
       }
       
-      console.log('[Airtable] Bambino does not belong to this genitore');
+      console.warn('[Airtable] Bambino does not belong to this genitore');
       return null;
     } catch (error) {
-      console.error('[Airtable] Error fetching bambino by ID:', error);
+      console.error('[Airtable] Error fetching bambino:', error);
       return null;
     }
   }
 
-  // Aggiorna bambino (con verifica genitore)
-  async updateBambino(bambinoId: string, genitoreId: string, fields: Partial<Bambino['fields']>): Promise<Bambino | null> {
+  async updateBambino(
+    bambinoId: string, 
+    genitoreId: string, 
+    fields: Partial<Bambino['fields']>
+  ): Promise<Bambino | null> {
     try {
-      console.log(`[Airtable] updateBambino - Start`);
-      console.log(`[Airtable] updateBambino - bambinoId: ${bambinoId}`);
-      console.log(`[Airtable] updateBambino - genitoreId: ${genitoreId}`);
-      console.log(`[Airtable] updateBambino - fields to update:`, Object.keys(fields));
-      
-      // Prima verifica che il bambino appartenga al genitore
+      // Verifica appartenenza
       const bambino = await this.getBambinoById(bambinoId, genitoreId);
       if (!bambino) {
-        console.log('[Airtable] updateBambino - Bambino not found or not authorized');
+        console.warn('[Airtable] Cannot update: bambino not found or unauthorized');
         return null;
       }
 
-      console.log('[Airtable] updateBambino - Bambino found, proceeding with update');
+      // Rimuovi campi read-only
+      const { 
+        TABELLA_GENITORI, 
+        ID_BAMBINO, 
+        CERTIFICATO_MEDICO_STATO,
+        GENITORE_RECORD_ID_LOOKUP,
+        ...safeFields 
+      } = fields;
 
-      // Lista di campi read-only che non devono essere mai modificati
-      const readOnlyFields = [
-        'TABELLA_GENITORI', 
-        'CERTIFICATO_MEDICO_STATO',
-        'ID_BAMBINO', // Campo formula/computed
-      ];
-
-      // Rimuovi tutti i campi read-only
-      const safeFields: any = {};
-      for (const [key, value] of Object.entries(fields)) {
-        if (!readOnlyFields.includes(key)) {
-          safeFields[key] = value;
-        } else {
-          console.log(`[Airtable] updateBambino - Removed read-only field: ${key}`);
-        }
-      }
-
-      console.log('[Airtable] updateBambino - Safe fields to update:', Object.keys(safeFields));
-
-      console.log('[Airtable] updateBambino - Making PATCH request...');
+      console.log('[Airtable] Updating bambino');
       const data = await this.request(`TABELLA_BAMBINI/${bambinoId}`, {
         method: 'PATCH',
         body: JSON.stringify({ fields: safeFields }),
       }) as Bambino;
       
-      console.log('[Airtable] updateBambino - Success, updated bambino:', data.id);
       return data;
     } catch (error) {
-      console.error('[Airtable] updateBambino - Error:', error);
-      if (error instanceof Error) {
-        console.error('[Airtable] updateBambino - Error message:', error.message);
-        console.error('[Airtable] updateBambino - Error stack:', error.stack);
-      }
+      console.error('[Airtable] Error updating bambino:', error);
       throw error;
     }
   }
 
-  // Elimina bambino (con verifica genitore)
   async deleteBambino(bambinoId: string, genitoreId: string): Promise<boolean> {
-    // Prima verifica che il bambino appartenga al genitore
     const bambino = await this.getBambinoById(bambinoId, genitoreId);
-    if (!bambino) {
-      return false;
-    }
+    if (!bambino) return false;
 
     await this.request(`TABELLA_BAMBINI/${bambinoId}`, {
       method: 'DELETE',
@@ -330,22 +345,14 @@ export class AirtableClient {
     return true;
   }
 
-  // ==================== FOTO BAMBINO ====================
-
-  // Aggiorna foto bambino
   async updateFotoBambino(
     bambinoId: string,
     genitoreId: string,
     fileUrl: string
   ): Promise<Bambino | null> {
-    // Verifica che il bambino appartenga al genitore
     const bambino = await this.getBambinoById(bambinoId, genitoreId);
-    if (!bambino) {
-      return null;
-    }
+    if (!bambino) return null;
 
-    // Aggiorna con la nuova foto
-    // Airtable richiede un URL pubblico accessibile
     const fields: Partial<Bambino['fields']> = {
       FOTO_BAMBINO: [{ url: fileUrl } as any],
     };
@@ -360,21 +367,15 @@ export class AirtableClient {
 
   // ==================== CERTIFICATO MEDICO ====================
 
-  // Aggiorna certificato medico (file + scadenza)
   async updateCertificatoMedico(
     bambinoId: string, 
     genitoreId: string, 
     fileUrl: string,
     scadenza: string
   ): Promise<Bambino | null> {
-    // Verifica che il bambino appartenga al genitore
     const bambino = await this.getBambinoById(bambinoId, genitoreId);
-    if (!bambino) {
-      return null;
-    }
+    if (!bambino) return null;
 
-    // Aggiorna con il nuovo certificato
-    // Airtable richiede un URL pubblico accessibile
     const fields: Partial<Bambino['fields']> = {
       CERTIFICATO_MEDICO_FILE: [{ url: fileUrl } as any],
       CERTIFICATO_MEDICO_SCADENZA: scadenza,
@@ -388,45 +389,10 @@ export class AirtableClient {
     return data;
   }
 
-  // Metodo fallback: salva solo la data di scadenza senza file
-  // Utile quando R2 non è configurato
-  async updateCertificatoMedicoWithBase64(
-    bambinoId: string, 
-    genitoreId: string, 
-    _fileData: string, // Non usato, Airtable non accetta base64
-    _fileName: string,
-    scadenza: string
-  ): Promise<Bambino | null> {
-    // Verifica che il bambino appartenga al genitore
-    const bambino = await this.getBambinoById(bambinoId, genitoreId);
-    if (!bambino) {
-      return null;
-    }
-
-    // ATTENZIONE: Questo metodo NON può caricare il file perché Airtable
-    // richiede URL pubblici. Salva solo la data di scadenza.
-    // Per caricare file, configurare R2 bucket.
-    console.warn('[Airtable] Cannot upload file without R2. Only updating expiry date.');
-    
-    const fields: Partial<Bambino['fields']> = {
-      CERTIFICATO_MEDICO_SCADENZA: scadenza,
-      // Non possiamo aggiornare CERTIFICATO_MEDICO_FILE senza R2
-    };
-
-    const data = await this.request(`TABELLA_BAMBINI/${bambinoId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ fields }),
-    }) as Bambino;
-    
-    return data;
-  }
-
   // ==================== TARIFFE ====================
 
-  // Ottieni tutte le tariffe
   async getTariffe(): Promise<Tariffa[]> {
     try {
-      console.log('[Airtable] Fetching all tariffe');
       const data = await this.request('TABELLA_TARIFFE') as AirtableResponse<Tariffa>;
       return data.records || [];
     } catch (error) {
@@ -435,33 +401,36 @@ export class AirtableClient {
     }
   }
 
-  // Ottieni tariffa per ID
   async getTariffaById(tariffaId: string): Promise<Tariffa | null> {
     try {
-      console.log(`[Airtable] Fetching tariffa: ${tariffaId}`);
       const data = await this.request(`TABELLA_TARIFFE/${tariffaId}`) as Tariffa;
       return data;
     } catch (error) {
-      console.error('[Airtable] Error fetching tariffa by ID:', error);
+      console.error('[Airtable] Error fetching tariffa:', error);
       return null;
     }
   }
 
-  // Ottieni tariffa attiva per anno specifico
-  async getTariffaAttivaPerAnno(anno: string): Promise<Tariffa | null> {
+  /**
+   * Ottieni la tariffa attiva per l'anno corrente
+   * Regola: ANNO_ISCRIZIONE = anno corrente E ATTIVA = true
+   */
+  async getTariffaAttivaAnnoCorrente(): Promise<Tariffa | null> {
     try {
-      console.log(`[Airtable] Fetching tariffa attiva for year: ${anno}`);
-      const formula = `AND({ANNO_ISCRIZIONE}="${anno}", {ATTIVA}=TRUE())`;
+      const annoCorrente = new Date().getFullYear().toString();
+      console.log(`[Airtable] Fetching tariffa attiva for year: ${annoCorrente}`);
+      
+      const formula = `AND({ANNO_ISCRIZIONE}="${annoCorrente}", {ATTIVA}=TRUE())`;
       const data = await this.request(
-        `TABELLA_TARIFFE?filterByFormula=${encodeURIComponent(formula)}`
+        `TABELLA_TARIFFE?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`
       ) as AirtableResponse<Tariffa>;
       
       if (data.records && data.records.length > 0) {
-        console.log('[Airtable] Found active tariffa for year:', anno);
+        console.log('[Airtable] Found active tariffa');
         return data.records[0];
       }
       
-      console.log('[Airtable] No active tariffa found for year:', anno);
+      console.warn('[Airtable] No active tariffa found for current year');
       return null;
     } catch (error) {
       console.error('[Airtable] Error fetching tariffa attiva:', error);
@@ -471,63 +440,83 @@ export class AirtableClient {
 
   // ==================== ISCRIZIONI ====================
 
-  // Crea una nuova iscrizione
+  /**
+   * Crea una nuova iscrizione
+   * ATTENZIONE: Verificare prima che non esista già un'iscrizione per il bambino
+   */
   async createIscrizione(fields: Iscrizione['fields']): Promise<Iscrizione> {
-    console.log('[Airtable] Creating iscrizione with fields:', fields);
+    // Rimuovi tutti i campi read-only (con o senza "(from TABELLA_X)")
+    const {
+      ID_ISCRIZIONE,
+      PROGRESSIVO_ISCRIZIONE,
+      STATO_ISCRIZIONE, // SENZA suffisso!
+      CHIAVE_UNIVOCA_ISCRIZIONE,
+      CATEGORIA_FCI, // SENZA suffisso!
+      'NOME_BAMBINO (from TABELLA_BAMBINI)': _nomeBambino,
+      'COGNOME_BAMBINO (from TABELLA_BAMBINI)': _cognomeBambino,
+      'DATA_NASCITA_BAMBINO (from TABELLA_BAMBINI)': _dataNascitaBambino,
+      'CODICE_FISCALE_BAMBINO (from TABELLA_BAMBINI)': _codiceFiscaleBambino,
+      'VIA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)': _viaResidenzaBambino,
+      'CITTA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)': _cittaResidenzaBambino,
+      'LUOGO_NASCITA_BAMBINO (from TABELLA_BAMBINI)': _luogoNascitaBambino,
+      'NOME_GENITORE (from TABELLA_GENITORI)': _nomeGenitore,
+      'COGNOME_GENITORE (from TABELLA_GENITORI)': _cognomeGenitore,
+      'EMAIL_GENITORE (from TABELLA_GENITORI)': _emailGenitore,
+      'ANNO_ISCRIZIONE (from TABELLA_TARIFFE)': _annoIscrizione,
+      'QUOTA_TOTALE_ANNO (from TABELLA_TARIFFE)': _quotaTotaleAnno,
+      'NUMERO_RATE (from TABELLA_TARIFFE)': _numeroRate,
+      'IMPORTO_RATA (from TABELLA_TARIFFE)': _importoRata,
+      'SCADENZA_RATE (from TABELLA_TARIFFE)': _scadenzaRate,
+      'IMPORTO_KIT_SCUOLA (from TABELLA_TARIFFE)': _importoKitScuola,
+      'IMPORTO_ISCRIZIONE (from TABELLA_TARIFFE)': _importoIscrizione,
+      'CERTIFICATO_MEDICO_STATO (from TABELLA_BAMBINI)': _certificatoMedicoStato,
+      GENITORE_RECORD_ID_LOOKUP,
+      ...safeFields
+    } = fields;
+
+    console.log('[Airtable] Creating iscrizione');
     const data = await this.request('TABELLA_ISCRIZIONI', {
       method: 'POST',
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({ fields: safeFields }),
     }) as Iscrizione;
     return data;
   }
 
-  // Ottieni tutte le iscrizioni di un genitore
+  /**
+   * Ottieni iscrizioni di un genitore usando GENITORE_RECORD_ID_LOOKUP
+   * FIX: ARRAYJOIN sui Linked Record restituisce il primary field, non il recordId
+   * Usiamo invece GENITORE_RECORD_ID_LOOKUP che contiene i recordId veri
+   */
   async getIscrizioniByGenitore(genitoreId: string): Promise<Iscrizione[]> {
-    try {
-      console.log(`[Airtable] Fetching iscrizioni for genitore: ${genitoreId}`);
-      
-      // Ottieni tutte le iscrizioni
-      const allData = await this.request('TABELLA_ISCRIZIONI') as AirtableResponse<Iscrizione>;
-      
-      if (!allData.records || allData.records.length === 0) {
-        console.log('[Airtable] No iscrizioni found');
-        return [];
-      }
+    console.log(`[Airtable] Fetching iscrizioni for genitore: ${genitoreId}`);
 
-      // Filtra manualmente per genitore
-      const iscrizioni = allData.records.filter(iscrizione => {
-        return iscrizione.fields.TABELLA_GENITORI && 
-               iscrizione.fields.TABELLA_GENITORI.includes(genitoreId);
-      });
-      
-      console.log(`[Airtable] Found ${iscrizioni.length} iscrizioni for this genitore`);
-      return iscrizioni;
-    } catch (error) {
-      console.error('[Airtable] Error fetching iscrizioni:', error);
-      
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('[Airtable] TABELLA_ISCRIZIONI does not exist yet');
-        return [];
-      }
-      
-      throw error;
-    }
+    // Usa GENITORE_RECORD_ID_LOOKUP invece di TABELLA_GENITORI
+    const formula = `FIND("${genitoreId}", ARRAYJOIN({GENITORE_RECORD_ID_LOOKUP}, ","))`;
+    console.log(`[Airtable] Using formula (iscrizioni): ${formula}`);
+
+    const records = await this.listAllRecords<Iscrizione>('TABELLA_ISCRIZIONI', {
+      filterByFormula: formula,
+    });
+
+    console.log(`[Airtable] Found ${records.length} iscrizioni`);
+    return records;
   }
 
-  // Ottieni iscrizioni per un bambino specifico
+  /**
+   * Ottieni iscrizioni per un bambino specifico
+   */
   async getIscrizioniByBambino(bambinoId: string, genitoreId: string): Promise<Iscrizione[]> {
     try {
       console.log(`[Airtable] Fetching iscrizioni for bambino: ${bambinoId}`);
       
       const allIscrizioni = await this.getIscrizioniByGenitore(genitoreId);
       
-      // Filtra per bambino
+      // Filtra per bambino in memoria (piccolo dataset dopo il primo filtro)
       const iscrizioni = allIscrizioni.filter(iscrizione => {
-        return iscrizione.fields.TABELLA_BAMBINI && 
-               iscrizione.fields.TABELLA_BAMBINI.includes(bambinoId);
+        return iscrizione.fields.TABELLA_BAMBINI?.includes(bambinoId);
       });
       
-      console.log(`[Airtable] Found ${iscrizioni.length} iscrizioni for this bambino`);
+      console.log(`[Airtable] Found ${iscrizioni.length} iscrizioni for bambino`);
       return iscrizioni;
     } catch (error) {
       console.error('[Airtable] Error fetching iscrizioni by bambino:', error);
@@ -535,190 +524,166 @@ export class AirtableClient {
     }
   }
 
-  // Controlla se esiste già un'iscrizione per bambino + anno
-  async checkIscrizioneDuplicata(bambinoId: string, tariffaId: string, genitoreId: string): Promise<boolean> {
+  /**
+   * REGOLA BUSINESS: Ogni bambino può avere UNA SOLA iscrizione
+   * Controlla se esiste già un'iscrizione per il bambino
+   */
+  async checkIscrizioneEsistente(bambinoId: string, genitoreId: string): Promise<boolean> {
     try {
+      console.log(`[Airtable] Checking existing iscrizione for bambino: ${bambinoId}`);
+      
       const iscrizioni = await this.getIscrizioniByBambino(bambinoId, genitoreId);
+      const esiste = iscrizioni.length > 0;
       
-      // Verifica se esiste già un'iscrizione con la stessa tariffa
-      const duplicata = iscrizioni.some(iscrizione => {
-        return iscrizione.fields.TABELLA_TARIFFE && 
-               iscrizione.fields.TABELLA_TARIFFE.includes(tariffaId);
-      });
+      if (esiste) {
+        console.warn('[Airtable] Iscrizione già esistente per questo bambino');
+      }
       
-      console.log('[Airtable] Check duplicata:', duplicata);
-      return duplicata;
+      return esiste;
     } catch (error) {
-      console.error('[Airtable] Error checking duplicata:', error);
+      console.error('[Airtable] Error checking iscrizione esistente:', error);
       return false;
     }
   }
 
-  // Ottieni iscrizione per ID (con verifica genitore)
   async getIscrizioneById(iscrizioneId: string, genitoreId: string): Promise<Iscrizione | null> {
     try {
-      console.log(`[Airtable] Fetching iscrizione ${iscrizioneId} for genitore ${genitoreId}`);
       const iscrizione = await this.request(`TABELLA_ISCRIZIONI/${iscrizioneId}`) as Iscrizione;
       
-      console.log('[Airtable] Fetched iscrizione:', iscrizione.id, 'TABELLA_GENITORI:', iscrizione.fields.TABELLA_GENITORI);
-      
-      // Verifica che l'iscrizione appartenga al genitore
-      if (iscrizione.fields.TABELLA_GENITORI && iscrizione.fields.TABELLA_GENITORI.includes(genitoreId)) {
-        console.log('[Airtable] Iscrizione belongs to genitore - OK');
+      // Verifica appartenenza usando TABELLA_GENITORI (linked record)
+      if (iscrizione.fields.TABELLA_GENITORI?.includes(genitoreId)) {
         return iscrizione;
       }
       
-      console.log('[Airtable] Iscrizione does not belong to this genitore');
+      console.warn('[Airtable] Iscrizione does not belong to this genitore');
       return null;
     } catch (error) {
-      console.error('[Airtable] Error fetching iscrizione by ID:', error);
+      console.error('[Airtable] Error fetching iscrizione:', error);
       return null;
     }
   }
 
-  // Aggiorna iscrizione (con verifica genitore)
-  async updateIscrizione(iscrizioneId: string, genitoreId: string, fields: Partial<Iscrizione['fields']>): Promise<Iscrizione | null> {
+  async updateIscrizione(
+    iscrizioneId: string, 
+    genitoreId: string, 
+    fields: Partial<Iscrizione['fields']>
+  ): Promise<Iscrizione | null> {
     try {
-      console.log(`[Airtable] updateIscrizione - Start`);
-      console.log(`[Airtable] updateIscrizione - iscrizioneId: ${iscrizioneId}`);
-      console.log(`[Airtable] updateIscrizione - genitoreId: ${genitoreId}`);
-      console.log(`[Airtable] updateIscrizione - fields to update:`, Object.keys(fields));
-      
-      // Prima verifica che l'iscrizione appartenga al genitore
+      // Verifica appartenenza
       const iscrizione = await this.getIscrizioneById(iscrizioneId, genitoreId);
       if (!iscrizione) {
-        console.log('[Airtable] updateIscrizione - Iscrizione not found or not authorized');
+        console.warn('[Airtable] Cannot update: iscrizione not found or unauthorized');
         return null;
       }
 
-      console.log('[Airtable] updateIscrizione - Iscrizione found, proceeding with update');
+      // Rimuovi TUTTI i campi read-only (con o senza "(from TABELLA_X)")
+      const {
+        TABELLA_GENITORI,
+        TABELLA_BAMBINI,
+        TABELLA_TARIFFE,
+        ID_ISCRIZIONE,
+        PROGRESSIVO_ISCRIZIONE,
+        CHIAVE_UNIVOCA_ISCRIZIONE,
+        CATEGORIA_FCI, // SENZA suffisso!
+        'NOME_BAMBINO (from TABELLA_BAMBINI)': _nomeBambino,
+        'COGNOME_BAMBINO (from TABELLA_BAMBINI)': _cognomeBambino,
+        'DATA_NASCITA_BAMBINO (from TABELLA_BAMBINI)': _dataNascitaBambino,
+        'CODICE_FISCALE_BAMBINO (from TABELLA_BAMBINI)': _codiceFiscaleBambino,
+        'VIA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)': _viaResidenzaBambino,
+        'CITTA_RESIDENZA_BAMBINO (from TABELLA_BAMBINI)': _cittaResidenzaBambino,
+        'LUOGO_NASCITA_BAMBINO (from TABELLA_BAMBINI)': _luogoNascitaBambino,
+        'NOME_GENITORE (from TABELLA_GENITORI)': _nomeGenitore,
+        'COGNOME_GENITORE (from TABELLA_GENITORI)': _cognomeGenitore,
+        'EMAIL_GENITORE (from TABELLA_GENITORI)': _emailGenitore,
+        'ANNO_ISCRIZIONE (from TABELLA_TARIFFE)': _annoIscrizione,
+        'QUOTA_TOTALE_ANNO (from TABELLA_TARIFFE)': _quotaTotaleAnno,
+        'NUMERO_RATE (from TABELLA_TARIFFE)': _numeroRate,
+        'IMPORTO_RATA (from TABELLA_TARIFFE)': _importoRata,
+        'SCADENZA_RATE (from TABELLA_TARIFFE)': _scadenzaRate,
+        'IMPORTO_KIT_SCUOLA (from TABELLA_TARIFFE)': _importoKitScuola,
+        'IMPORTO_ISCRIZIONE (from TABELLA_TARIFFE)': _importoIscrizione,
+        'CERTIFICATO_MEDICO_STATO (from TABELLA_BAMBINI)': _certificatoMedicoStato,
+        GENITORE_RECORD_ID_LOOKUP,
+        ...safeFields
+      } = fields;
 
-      // Lista di campi read-only che non devono essere mai modificati
-      const readOnlyFields = [
-        'TABELLA_GENITORI',
-        'TABELLA_BAMBINI',
-        'TABELLA_TARIFFE',
-        'DATA_ISCRIZIONE',
-        'STATO_ISCRIZIONE',
-        'ANNO_ISCRIZIONE',
-        'NOME BAMBINO',
-        'COGNOME BAMBINO',
-        'CATEGORIA',
-      ];
-
-      // Rimuovi tutti i campi read-only
-      const safeFields: any = {};
-      for (const [key, value] of Object.entries(fields)) {
-        if (!readOnlyFields.includes(key)) {
-          safeFields[key] = value;
-        } else {
-          console.log(`[Airtable] updateIscrizione - Removed read-only field: ${key}`);
-        }
-      }
-
-      console.log('[Airtable] updateIscrizione - Safe fields to update:', Object.keys(safeFields));
-
-      console.log('[Airtable] updateIscrizione - Making PATCH request...');
+      console.log('[Airtable] Updating iscrizione');
       const data = await this.request(`TABELLA_ISCRIZIONI/${iscrizioneId}`, {
         method: 'PATCH',
         body: JSON.stringify({ fields: safeFields }),
       }) as Iscrizione;
       
-      console.log('[Airtable] updateIscrizione - Success, updated iscrizione:', data.id);
       return data;
     } catch (error) {
-      console.error('[Airtable] updateIscrizione - Error:', error);
-      if (error instanceof Error) {
-        console.error('[Airtable] updateIscrizione - Error message:', error.message);
-        console.error('[Airtable] updateIscrizione - Error stack:', error.stack);
-      }
+      console.error('[Airtable] Error updating iscrizione:', error);
       throw error;
     }
   }
 
-  // Aggiorna regolamento firmato iscrizione
+  /**
+   * Aggiorna il regolamento firmato con URL pubblico e data di firma
+   */
   async updateRegolamentoFirmato(
     iscrizioneId: string,
     genitoreId: string,
-    fileUrl: string
+    fileUrl: string,
+    dataFirma: string
   ): Promise<Iscrizione | null> {
-    // Verifica che l'iscrizione appartenga al genitore
-    const iscrizione = await this.getIscrizioneById(iscrizioneId, genitoreId);
-    if (!iscrizione) {
-      return null;
+    try {
+      const iscrizione = await this.getIscrizioneById(iscrizioneId, genitoreId);
+      if (!iscrizione) return null;
+
+      // Aggiorna URL del file E data di firma
+      const fields: Partial<Iscrizione['fields']> = {
+        REGOLAMENTO_FIRMATO: [{ url: fileUrl } as any],
+        DATA_FIRMA_REGOLAMENTO: dataFirma,
+      };
+
+      const data = await this.request(`TABELLA_ISCRIZIONI/${iscrizioneId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fields }),
+      }) as Iscrizione;
+      
+      return data;
+    } catch (error) {
+      // Se fallisce, logga un warning chiaro
+      if (error instanceof Error && error.message.includes('UNKNOWN_FIELD_NAME')) {
+        console.warn('[Airtable] REGOLAMENTO_FIRMATO or DATA_FIRMA_REGOLAMENTO field does not exist');
+      } else if (error instanceof Error && error.message.includes('INVALID_VALUE')) {
+        console.warn('[Airtable] REGOLAMENTO_FIRMATO is not an attachment field - cannot upload files');
+      }
+      throw error;
     }
-
-    // Aggiorna con il nuovo regolamento
-    const fields: Partial<Iscrizione['fields']> = {
-      REGOLAMENTO_FIRMATO_FILE: [{ url: fileUrl } as any],
-    };
-
-    const data = await this.request(`TABELLA_ISCRIZIONI/${iscrizioneId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ fields }),
-    }) as Iscrizione;
-    
-    return data;
   }
 }
 
-// Helper per ottenere il client Airtable con le env vars
+// Helper per ottenere il client Airtable
 export function getAirtableClient(runtime?: any): AirtableClient | null {
   let baseId: string | undefined;
   let token: string | undefined;
 
-  // Prova diversi modi di accedere alle variabili
-  // 1. Da runtime.env (Cloudflare Workers in produzione)
+  // Priorità: runtime.env > import.meta.env > process.env
   if (runtime?.env) {
     baseId = runtime.env.AIRTABLE_BASE_ID;
-    // Prova sia AIRTABLE_API_KEY che AIRTABLE_TOKEN
-    token = runtime.env.AIRTABLE_API_KEY || runtime.env.AIRTABLE_TOKEN;
+    token = runtime.env.AIRTABLE_TOKEN || runtime.env.AIRTABLE_API_KEY;
   }
 
-  // 2. Da runtime direttamente (a volte le env vars sono qui)
-  if (!baseId && runtime?.AIRTABLE_BASE_ID) {
-    baseId = runtime.AIRTABLE_BASE_ID;
-  }
-  if (!token) {
-    token = runtime?.AIRTABLE_API_KEY || runtime?.AIRTABLE_TOKEN;
-  }
-
-  // 3. Fallback a import.meta.env (sviluppo locale o build-time)
   if (!baseId) {
     baseId = import.meta.env.AIRTABLE_BASE_ID;
   }
   if (!token) {
-    token = import.meta.env.AIRTABLE_API_KEY || import.meta.env.AIRTABLE_TOKEN;
+    token = import.meta.env.AIRTABLE_TOKEN || import.meta.env.AIRTABLE_API_KEY;
   }
 
-  // 4. Prova anche process.env (per sicurezza)
-  if (!baseId && typeof process !== 'undefined' && process.env) {
-    baseId = process.env.AIRTABLE_BASE_ID;
+  if (typeof process !== 'undefined' && process.env) {
+    if (!baseId) baseId = process.env.AIRTABLE_BASE_ID;
+    if (!token) token = process.env.AIRTABLE_TOKEN || process.env.AIRTABLE_API_KEY;
   }
-  if (!token && typeof process !== 'undefined' && process.env) {
-    token = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
-  }
-
-  // Log dettagliato per debugging
-  console.log('=== AIRTABLE CLIENT INITIALIZATION ===');
-  console.log('Runtime provided:', !!runtime);
-  console.log('Runtime.env exists:', !!runtime?.env);
-  console.log('Runtime.env.AIRTABLE_BASE_ID:', !!runtime?.env?.AIRTABLE_BASE_ID);
-  console.log('Runtime.env.AIRTABLE_API_KEY:', !!runtime?.env?.AIRTABLE_API_KEY);
-  console.log('Runtime.env.AIRTABLE_TOKEN:', !!runtime?.env?.AIRTABLE_TOKEN);
-  console.log('Final baseId found:', !!baseId);
-  console.log('Final token found:', !!token);
-  console.log('======================================');
 
   if (!baseId || !token) {
-    console.error('❌ Airtable credentials not configured');
-    console.error('Missing:', {
-      baseId: !baseId,
-      token: !token
-    });
+    console.error('[Airtable] Missing credentials');
     return null;
   }
 
-  console.log('✅ Airtable client created successfully');
   return new AirtableClient(baseId, token);
 }

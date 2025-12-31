@@ -219,6 +219,20 @@ background-color: var(--primary) !important;
 opacity: 0.9;
 }
 
+/* Force white text on blue buttons */
+:is(a, button).bg-blue-900 {
+background-color: #0c2340 !important;
+color: white !important;
+}
+
+:is(a, button).bg-blue-900:hover {
+background-color: #081829 !important;
+}
+
+:is(a, button).text-white {
+color: white !important;
+}
+
 /* Container responsivo */
 .container {
 width: 100%;

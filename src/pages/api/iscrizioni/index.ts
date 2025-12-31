@@ -1,6 +1,6 @@
 // API route per gestire le iscrizioni del genitore autenticato
 import type { APIRoute } from 'astro';
-import { getAirtableClient } from '../../../lib/airtable';
+import { getAirtableClient, type Iscrizione } from '../../../lib/airtable';
 import { getGenitoreFromSession } from '../../../lib/auth';
 
 // GET: ottieni tutte le iscrizioni del genitore (o di un bambino specifico)
@@ -33,7 +33,7 @@ export const GET: APIRoute = async (context) => {
     const url = new URL(context.request.url);
     const bambinoId = url.searchParams.get('bambinoId');
 
-    let iscrizioni;
+    let iscrizioni: Iscrizione[];
     if (bambinoId) {
       console.log('[API] Fetching iscrizioni for bambino:', bambinoId);
       iscrizioni = await client.getIscrizioniByBambino(bambinoId, genitore.id!);
@@ -44,6 +44,7 @@ export const GET: APIRoute = async (context) => {
     
     console.log('[API] Successfully fetched', iscrizioni.length, 'iscrizioni');
 
+    // Restituisci i dati grezzi da Airtable senza normalizzazione
     return new Response(JSON.stringify({ iscrizioni }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -88,10 +89,10 @@ export const POST: APIRoute = async (context) => {
     const body: any = await context.request.json();
     console.log('[API] Received body:', Object.keys(body));
 
-    // Validazione campi obbligatori
-    if (!body.bambinoId || !body.tariffaId) {
+    // Validazione campo obbligatorio: solo bambinoId
+    if (!body.bambinoId) {
       return new Response(
-        JSON.stringify({ error: 'Bambino e tariffa sono obbligatori' }),
+        JSON.stringify({ error: 'Bambino obbligatorio' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -105,25 +106,35 @@ export const POST: APIRoute = async (context) => {
       );
     }
 
-    // Controlla se esiste già un'iscrizione per questo bambino con questa tariffa
-    const isDuplicata = await client.checkIscrizioneDuplicata(
+    // REGOLA BUSINESS: Ogni bambino può avere UNA SOLA iscrizione
+    const iscrizioneEsistente = await client.checkIscrizioneEsistente(
       body.bambinoId,
-      body.tariffaId,
       genitore.id!
     );
 
-    if (isDuplicata) {
+    if (iscrizioneEsistente) {
       return new Response(
-        JSON.stringify({ error: 'Esiste già un\'iscrizione per questo bambino con questa tariffa' }),
+        JSON.stringify({ error: 'Esiste già un\'iscrizione per questo bambino' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Crea l'iscrizione
+    // Ottieni la tariffa attiva per l'anno corrente
+    const tariffa = await client.getTariffaAttivaAnnoCorrente();
+    if (!tariffa) {
+      return new Response(
+        JSON.stringify({ error: 'Nessuna tariffa attiva disponibile per l\'anno corrente' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[API] Using tariffa:', tariffa.id, 'for year:', tariffa.fields.ANNO_ISCRIZIONE);
+
+    // Crea l'iscrizione con la tariffa dell'anno corrente
     const iscrizioneData = {
       TABELLA_GENITORI: [genitore.id!],
       TABELLA_BAMBINI: [body.bambinoId],
-      TABELLA_TARIFFE: [body.tariffaId],
+      TABELLA_TARIFFE: [tariffa.id!],
     };
 
     console.log('[API] Creating iscrizione...');

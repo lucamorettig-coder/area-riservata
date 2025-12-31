@@ -1,0 +1,170 @@
+---
+import MainLayout from '../layouts/main.astro';
+import { baseUrl } from '../lib/base-url';
+
+// Verifica autenticazione
+const authCookie = Astro.cookies.get('auth_token');
+if (!authCookie) {
+  return Astro.redirect(`${baseUrl}/login`);
+}
+---
+
+<MainLayout>
+  <div class="min-h-screen bg-background py-8">
+    <div class="container mx-auto px-4">
+      <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+          <h1 class="text-3xl font-bold font-heading mb-2">Debug Genitore → Bambini</h1>
+          <p class="text-muted-foreground">
+            Verifica connessione tra genitore e bambini in Airtable
+          </p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="card-rounded border bg-card p-8 text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+          <p class="text-muted-foreground">Caricamento dati da Airtable...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="hidden card-rounded border bg-destructive/10 border-destructive/50 p-6">
+          <h3 class="font-semibold text-destructive mb-2">Errore</h3>
+          <pre id="error-message" class="text-sm text-destructive/80 whitespace-pre-wrap"></pre>
+        </div>
+
+        <!-- Success State -->
+        <div id="success" class="hidden space-y-6">
+          <!-- Genitore Info -->
+          <div class="card-rounded border bg-card p-6">
+            <h2 class="text-xl font-semibold mb-4">👤 Genitore Autenticato</h2>
+            <div class="space-y-2 text-sm">
+              <div><strong>ID:</strong> <code id="genitore-id" class="bg-muted px-2 py-1 rounded"></code></div>
+              <div><strong>Nome:</strong> <span id="genitore-nome"></span></div>
+              <div><strong>Cognome:</strong> <span id="genitore-cognome"></span></div>
+              <div><strong>Email:</strong> <span id="genitore-email"></span></div>
+            </div>
+          </div>
+
+          <!-- Formula Airtable -->
+          <div class="card-rounded border bg-muted/50 p-6">
+            <h2 class="text-xl font-semibold mb-4">🔍 Formula Airtable Usata</h2>
+            <pre id="formula" class="text-xs bg-background p-4 rounded border overflow-x-auto"></pre>
+          </div>
+
+          <!-- Bambini -->
+          <div class="card-rounded border bg-card p-6">
+            <h2 class="text-xl font-semibold mb-4">
+              👶 Bambini Trovati: <span id="bambini-count" class="text-primary"></span>
+            </h2>
+            <div id="bambini-list" class="space-y-4"></div>
+            <div id="bambini-empty" class="hidden text-center py-8 text-muted-foreground">
+              <p class="mb-2">❌ Nessun bambino trovato</p>
+              <p class="text-sm">Possibili cause:</p>
+              <ul class="text-xs mt-2 space-y-1">
+                <li>• Il campo TABELLA_GENITORI nel bambino non contiene questo genitore</li>
+                <li>• La formula FIND non sta matchando correttamente</li>
+                <li>• Il bambino non esiste in Airtable</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-4">
+            <a href={`${baseUrl}/dashboard`} class="pulsante1 is-secondary btn-standard flex items-center justify-center">
+              ← Torna alla Dashboard
+            </a>
+            <button id="refresh" class="pulsante1 btn-standard flex items-center justify-center">
+              🔄 Ricarica
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ baseUrl }}>
+    async function loadDebugInfo() {
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+      const success = document.getElementById('success');
+      const errorMessage = document.getElementById('error-message');
+
+      try {
+        loading?.classList.remove('hidden');
+        error?.classList.add('hidden');
+        success?.classList.add('hidden');
+
+        const response = await fetch(`${baseUrl}/api/debug-genitore-bambini`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Errore sconosciuto');
+        }
+
+        loading?.classList.add('hidden');
+        success?.classList.remove('hidden');
+
+        // Genitore info
+        document.getElementById('genitore-id').textContent = data.genitore.id;
+        document.getElementById('genitore-nome').textContent = data.genitore.nome;
+        document.getElementById('genitore-cognome').textContent = data.genitore.cognome;
+        document.getElementById('genitore-email').textContent = data.genitore.email;
+
+        // Formula
+        document.getElementById('formula').textContent = data.airtableFormula;
+
+        // Bambini
+        const count = data.bambini.count;
+        document.getElementById('bambini-count').textContent = count;
+
+        const bambiniList = document.getElementById('bambini-list');
+        const bambiniEmpty = document.getElementById('bambini-empty');
+
+        if (count === 0) {
+          bambiniList.classList.add('hidden');
+          bambiniEmpty?.classList.remove('hidden');
+        } else {
+          bambiniList.classList.remove('hidden');
+          bambiniEmpty?.classList.add('hidden');
+
+          bambiniList.innerHTML = data.bambini.records.map((bambino, index) => `
+            <div class="border rounded-lg p-4 ${bambino.TABELLA_GENITORI_includes_genitoreId ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">
+              <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold">
+                  ${index + 1}. ${bambino.nome} ${bambino.cognome}
+                </h3>
+                <span class="text-xs px-2 py-1 rounded ${bambino.TABELLA_GENITORI_includes_genitoreId ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                  ${bambino.TABELLA_GENITORI_includes_genitoreId ? '✅ Match' : '❌ No Match'}
+                </span>
+              </div>
+              <div class="space-y-1 text-xs">
+                <div><strong>ID:</strong> <code class="bg-background px-2 py-1 rounded">${bambino.id}</code></div>
+                <div><strong>TABELLA_GENITORI:</strong> <code class="bg-background px-2 py-1 rounded">${JSON.stringify(bambino.TABELLA_GENITORI)}</code></div>
+                <div>
+                  <strong>Contiene genitore.id?</strong> 
+                  <span class="${bambino.TABELLA_GENITORI_includes_genitoreId ? 'text-green-600' : 'text-red-600'}">
+                    ${bambino.TABELLA_GENITORI_includes_genitoreId ? 'SÌ' : 'NO'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+      } catch (err) {
+        loading?.classList.add('hidden');
+        error?.classList.remove('hidden');
+        errorMessage.textContent = err instanceof Error ? err.message : 'Errore sconosciuto';
+      }
+    }
+
+    // Load on page load
+    loadDebugInfo();
+
+    // Refresh button
+    document.getElementById('refresh')?.addEventListener('click', () => {
+      loadDebugInfo();
+    });
+  </script>
+</MainLayout>
