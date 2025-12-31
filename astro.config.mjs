@@ -1,7 +1,28 @@
-import {defineConfig} from 'astro/config';
+import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
+
+/* ------------------------------------------------------------------
+   BASE PATH DINAMICO (DEV / PROD / LOCALE)
+   ------------------------------------------------------------------ */
+
+// Default locale: coerente con la tua configurazione attuale
+const rawBase = process.env.APP_BASE_PATH || '/area-riservata-triono';
+
+// Normalizza:
+// - deve iniziare con "/"
+// - NON deve finire con "/"
+const base = (() => {
+  let b = String(rawBase).trim();
+  if (!b.startsWith('/')) b = `/${b}`;
+  if (b.length > 1 && b.endsWith('/')) b = b.slice(0, -1);
+  return b;
+})();
+
+/* ------------------------------------------------------------------
+   PATCH VITE ERROR OVERLAY
+   ------------------------------------------------------------------ */
 
 // Patches node_modules/vite/dist/client/client.mjs
 function patchViteErrorOverlay() {
@@ -18,11 +39,12 @@ function patchViteErrorOverlay() {
   };
 }
 
-/**
- * Astro integration to inject development-only scripts
- */
+/* ------------------------------------------------------------------
+   INJECT DEV SCRIPT (solo in dev)
+   ------------------------------------------------------------------ */
+
 function injectDevScript(options = {}) {
-  const {scriptPath} = options;
+  const { scriptPath } = options;
 
   if (!scriptPath) {
     throw new Error('injectDevScript requires a scriptPath');
@@ -31,11 +53,9 @@ function injectDevScript(options = {}) {
   return {
     name: 'inject-dev-script',
     hooks: {
-      'astro:config:setup': ({injectScript, command, logger}) => {
+      'astro:config:setup': ({ injectScript, command, logger }) => {
         if (command === 'dev') {
           logger.info(`Injecting dev script: ${scriptPath}`);
-
-          // Inject as ES module
           injectScript('page', `import "${scriptPath}";`);
         }
       },
@@ -43,35 +63,49 @@ function injectDevScript(options = {}) {
   };
 }
 
-// https://astro.build/config
+/* ------------------------------------------------------------------
+   ASTRO CONFIG
+   ------------------------------------------------------------------ */
+
 export default defineConfig({
-  base: '/area-riservata-triono',
+  base,
+
   output: 'server',
+
   devToolbar: {
     enabled: false,
   },
+
   server: {
     port: 3000,
-    host: true, // Listen on all network interfaces (0.0.0.0)
+    host: true,      // Listen on all network interfaces
     strictPort: true,
   },
+
   adapter: cloudflare({
     platformProxy: {
       enabled: false,
     },
   }),
+
   integrations: [
     react(),
-    injectDevScript({scriptPath: '/generated/dev-only.js'}),
+    injectDevScript({ scriptPath: '/generated/dev-only.js' }),
   ],
+
   security: {
     checkOrigin: false, // Disabilita il controllo CSRF origin
   },
+
   vite: {
-    plugins: [tailwindcss(), patchViteErrorOverlay()],
+    plugins: [
+      tailwindcss(),
+      patchViteErrorOverlay(),
+    ],
+
     server: {
       watch: {
-        usePolling: true, // Enable polling for file watching in Docker
+        usePolling: true,
         interval: 1000,
         ignored: [
           '**/lost+found/**',
@@ -81,9 +115,9 @@ export default defineConfig({
         ],
       },
     },
+
     resolve: {
-      // Use react-dom/server.edge instead of react-dom/server.browser for React 19.
-      // Without this, MessageChannel from node:worker_threads needs to be polyfilled.
+      // Use react-dom/server.edge instead of react-dom/server.browser for React 19
       alias: import.meta.env.PROD
         ? {
             'react-dom/server': 'react-dom/server.edge',
