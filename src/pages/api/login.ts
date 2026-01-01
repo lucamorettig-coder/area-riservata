@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getAirtableClient } from '../../lib/airtable';
-import { getSupabaseClient } from '../../lib/supabase';
+import { createSupabaseClient } from '../../lib/supabase';
 import { createSession } from '../../lib/auth';
 
 interface LoginRequest {
@@ -9,102 +9,105 @@ interface LoginRequest {
 }
 
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
+  console.log('➡️ /api/login called');
+
   try {
-    const body = await request.json() as LoginRequest;
+    // --------------------------------------------------
+    // 1. Parse & validate body
+    // --------------------------------------------------
+    let body: LoginRequest;
+
+    try {
+      body = (await request.json()) as LoginRequest;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Body JSON non valido' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { email, password } = body;
 
     if (!email || !password) {
       return new Response(
-        JSON.stringify({ error: 'Email e password richieste' }), 
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({ error: 'Email e password richieste' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Ottieni client Supabase
-    const supabase = getSupabaseClient(locals?.runtime);
-    
-    if (!supabase) {
+    console.log('🔐 Login attempt for:', email);
+
+    // --------------------------------------------------
+    // 2. Supabase Auth (SERVER SIDE)
+    // --------------------------------------------------
+    const supabase = createSupabaseClient(locals);
+
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (authError || !authData?.user) {
+      console.error('❌ Supabase signIn error:', authError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Configurazione Supabase non disponibile. Configura SUPABASE_URL e SUPABASE_ANON_KEY nelle Environment Variables di Webflow.' 
-        }), 
-        {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({ error: authError?.message ?? 'Credenziali non valide' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // Ottieni client Airtable
+    console.log('✅ Supabase auth OK, user id:', authData.user.id);
+
+    // --------------------------------------------------
+    // 3. Airtable lookup
+    // --------------------------------------------------
     const airtableClient = getAirtableClient(locals?.runtime);
-    
+
     if (!airtableClient) {
+      console.error('❌ Airtable client not configured');
       return new Response(
-        JSON.stringify({ 
-          error: 'Configurazione Airtable non disponibile. Configura AIRTABLE_BASE_ID e AIRTABLE_TOKEN nelle Environment Variables di Webflow.' 
-        }), 
-        {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({
+          error:
+            'Configurazione Airtable non disponibile. Contatta il supporto.',
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 1. Verifica le credenziali su Supabase
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError || !authData.user) {
-      console.error('Errore Supabase Auth:', authError);
-      return new Response(
-        JSON.stringify({ error: 'Email o password non corrette' }), 
-        {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // 2. Recupera i dati completi da Airtable usando l'email
-    // (potremmo anche cercare per AUTH_USER_ID se configurato il campo)
     const genitore = await airtableClient.findGenitoreByEmail(email);
-    
+
     if (!genitore) {
+      console.error('❌ Airtable user not found for email:', email);
       return new Response(
-        JSON.stringify({ error: 'Dati utente non trovati. Contatta il supporto.' }), 
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({
+          error: 'Dati utente non trovati. Contatta il supporto.',
+        }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // 3. Crea sessione con i dati di Airtable
+    // --------------------------------------------------
+    // 4. Create session
+    // --------------------------------------------------
     createSession(cookies, {
       genitoreId: genitore.id!,
       email: genitore.fields.EMAIL_GENITORE,
     });
 
+    console.log('🍪 Session created for:', email);
+
     return new Response(
-      JSON.stringify({ success: true }), 
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
-    console.error('Errore login:', error);
+  } catch (err: any) {
+    console.error('❌ Login handler exception:', err);
+
     return new Response(
-      JSON.stringify({ error: 'Errore durante il login' }), 
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({
+        error: err?.message ?? 'Errore interno durante il login',
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };
